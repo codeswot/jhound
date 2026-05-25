@@ -47,6 +47,25 @@ def cmd_record_application(payload: dict) -> dict:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
                 """
+                SELECT id FROM job_applications
+                 WHERE job_url <> %(job_url)s
+                   AND applied_at > NOW() - INTERVAL '60 days'
+                   AND similarity(LOWER(company), LOWER(%(company)s)) >= 0.7
+                   AND similarity(LOWER(job_title), LOWER(%(job_title)s)) >= 0.7
+                 LIMIT 1
+                """,
+                {
+                    "job_url": payload.get("job_url"),
+                    "company": payload.get("company") or "",
+                    "job_title": payload.get("job_title") or "",
+                },
+            )
+            dupe = cur.fetchone()
+            if dupe:
+                return {"ok": True, "id": str(dupe["id"]), "method": "skipped_duplicate", "status": "duplicate"}
+
+            cur.execute(
+                """
                 INSERT INTO job_applications (
                   job_title, company, company_domain, job_url, job_description,
                   source_board, location, is_remote, application_method, status,

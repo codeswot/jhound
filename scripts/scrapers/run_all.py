@@ -33,8 +33,36 @@ def run(cmd: list[str], timeout: int) -> list[dict]:
         return []
 
 
+def _norm(s: str) -> str:
+    return " ".join((s or "").lower().split())
+
+
+def dedupe_in_batch(jobs: list[dict]) -> list[dict]:
+    """Drop duplicates within the freshly-scraped batch.
+    Keys (any match drops the later occurrence):
+      1. job_url
+      2. (lower-company, lower-title)
+    """
+    seen_urls: set[str] = set()
+    seen_ct: set[tuple[str, str]] = set()
+    out: list[dict] = []
+    for job in jobs:
+        url = (job.get("job_url") or "").strip()
+        if url and url in seen_urls:
+            continue
+        ct = (_norm(job.get("company") or ""), _norm(job.get("job_title") or ""))
+        if ct[0] and ct[1] and ct in seen_ct:
+            continue
+        if url:
+            seen_urls.add(url)
+        if ct[0] and ct[1]:
+            seen_ct.add(ct)
+        out.append(job)
+    return out
+
+
 def dedupe_against_db(jobs: list[dict]) -> list[dict]:
-    """Remove jobs already in the DB (URL or fuzzy title+company match). Single call per batch."""
+    """Remove jobs already in the DB. Checks URL exact AND fuzzy (company+title) in one call per job."""
     try:
         import psycopg2
         conn = psycopg2.connect(
@@ -47,11 +75,13 @@ def dedupe_against_db(jobs: list[dict]) -> list[dict]:
         cur = conn.cursor()
         new_jobs = []
         for job in jobs:
-            url = job.get("job_url", "")
-            if not url:
-                new_jobs.append(job)
-                continue
-            cur.execute("SELECT job_exists(%s) AS e", (url,))
+            url = job.get("job_url") or ""
+            company = job.get("company") or ""
+            title = job.get("job_title") or ""
+            cur.execute(
+                "SELECT job_exists(%s) OR job_fuzzy_exists(%s, %s) AS e",
+                (url, company, title),
+            )
             row = cur.fetchone()
             if row and row[0]:
                 continue
@@ -94,8 +124,11 @@ def main():
 
     if not args.no_dedupe:
         before = len(merged)
+        merged = dedupe_in_batch(merged)
+        print(f"[run_all] intra-batch dedupe: {before} → {len(merged)} jobs", file=sys.stderr)
+        before = len(merged)
         merged = dedupe_against_db(merged)
-        print(f"[run_all] dedupe: {before} → {len(merged)} jobs", file=sys.stderr)
+        print(f"[run_all] db dedupe: {before} → {len(merged)} jobs", file=sys.stderr)
 
     print(json.dumps(merged))
 

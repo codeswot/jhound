@@ -173,7 +173,7 @@
       "typeVersion": 1,
       "position": [1860, 400],
       "parameters": {
-        "command": "=printf %s '{{ JSON.stringify({ to: JSON.parse($('Find Email').first().json.stdout).email, subject: JSON.parse($json.stdout).subject, body: JSON.parse($json.stdout).body, tier: $('Parse Research').first().json.job.ai_priority_tier }).replace(/'/g, \"'\\\\''\") }}' | node /home/node/scripts/email_sender.js"
+        "command": "=printf %s '{{ JSON.stringify({ to: JSON.parse($('Find Email').first().json.stdout).email, subject: JSON.parse($json.stdout).subject, body: JSON.parse($json.stdout).body, tier: $('Parse Research').first().json.job.ai_priority_tier, role: $('Parse Research').first().json.job.job_title }).replace(/'/g, \"'\\\\''\") }}' | node /home/node/scripts/email_sender.js"
       }
     },
     {

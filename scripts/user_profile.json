@@ -26,9 +26,18 @@
   ],
   "resume_path": "/home/node/resources/cv.docx",
   "recommendations": [
-    "/home/node/resources/recomendation_flutter_plus.pdf",
+    "/home/node/resources/recommendation_flutter_plus.pdf",
     "/home/node/resources/recommendation_flutter.pdf"
   ],
+  "experience_anchors": {
+    "flutter": "I'm a contributor on White Noise (parres/white_noise) — a Flutter Nostr secure messenger using MLS for end-to-end-encrypted group chats. Day job is shipping Flutter + Dart at SkuidPay.",
+    "nostr": "Building Nostr-native payment flows at SkuidPay and contributing to White Noise (Flutter MLS messenger). I run my own relay set and have shipped NIP-04 / NIP-44 DM tooling.",
+    "bitcoin": "Built SkuidPay (Lightning payment processor on NestJS + Postgres) end-to-end. Daily Bitcoin/Lightning work — hot wallets, BOLT11 invoicing, settlement reconciliation. Also a Bybit trading sim in NestJS.",
+    "lightning": "Shipped SkuidPay's Lightning payment processor: BOLT11 invoicing, HTLC settlement, idempotent webhooks. NestJS + Postgres.",
+    "nestjs": "Built SkuidPay's payment processor + sync engine on NestJS — real-time order events over WebSockets, idempotent webhooks, Postgres at scale, Bull queues, Redis cache.",
+    "typescript": "Five years of TypeScript across NestJS backends and Next.js frontends. SkuidPay's full stack runs on it.",
+    "default": "I ship Bitcoin/Lightning + Nostr products on NestJS and Flutter. Recent work: SkuidPay (LN payment processor) and a White Noise contribution (Flutter MLS Nostr messenger)."
+  },
   "links": {
     "portfolio": "https://codeswot.me",
     "github": "https://github.com/codeswot",

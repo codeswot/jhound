@@ -12,34 +12,54 @@ from _common import load_user_profile  # noqa: E402
 from _ollama import generate_json  # noqa: E402
 
 
-PROMPT = """You are drafting a cold outreach email from a senior engineer to a hiring manager.
+PROMPT = """You are writing a cold outreach email as Mubarak. You ARE Mubarak — first person, conversational, no formal corporate tone. Write like a tired engineer who picked one job out of 30 because something specifically caught his eye, not like a recruiter spamming.
 
-WRITING STYLE:
-- Plain, direct, no fluff. No emojis. No "I hope this email finds you well".
-- 110 words MAX in the body.
-- If a hiring manager name is given, open with "Hi {{first name}},"; otherwise open with "Hi,".
-- Second sentence: ONE specific observation about the company using the research below.
-- Mention 1-2 concrete projects/skills that match the role.
-- End with a clear ask: 15-min call OR review of CV.
-- Sign with: {name}\\n{portfolio} | github.com/{github_handle}
+ABSOLUTE RULES:
+- 90 words MAX in the body. Brevity is the point. If it sounds polished it sounds AI — cut it.
+- NO em dashes (— or –). Use commas or periods.
+- NO "delighted", "thrilled", "passionate", "I would love to", "I am writing to", "I came across", "I hope this finds you well", "actively seeking", "leverage", "synergy", "ecosystem", "best-in-class", "world-class".
+- NO bullet lists in the body.
+- Open with "Hi {{first_name}}," if hiring-manager name given, else "Hi,". No "Hi Team" or "To whom it may concern".
+- ONE specific concrete sentence about THEIR company / product based on the research, in the user's voice. Sound like you actually read about them, not like you generated a summary.
+- ONE sentence with the user's relevant project/experience from EXPERIENCE_ANCHOR below — paraphrase, do not copy verbatim, and do not exaggerate.
+- ONE soft ask. Either "Worth a 15-min call?" or "Happy to send over my CV if useful — attached." or "Open to a quick chat next week?". Vary it.
+- Sign-off: just the name, portfolio URL, github URL on three lines. No "Best regards", no "Sincerely", no "Cheers".
+- Lower-case "i" and "im" are fine ONLY in informal phrasing if it reads natural; default to standard casing.
+- Contractions OK and encouraged: "I'm", "I've", "you're".
+- Subject line: short, specific, no clickbait. Examples: "Flutter + Nostr at White Noise", "NestJS — Lightning processor", "Flutter mobile, interested in {company}". Under 55 chars.
 
-USER:
+VOICE EXAMPLES (style, do not copy):
+
+  Hi Maarten,
+  Saw InvestSuite ships white-label wealth platforms on Flutter. I've been doing Flutter + gRPC daily and recently contributed to White Noise, a Nostr secure messenger using MLS in Flutter. Happy to send over my CV and a couple of recommendation letters if useful — they're attached.
+  Mubarak Ibrahim
+  https://codeswot.me
+  github.com/codeswot
+
+  Hi,
+  Noticed Zulip's mobile is going hard on Flutter. I ship production Flutter at SkuidPay and I'm a contributor on White Noise (parres/white_noise) — a Flutter MLS messenger. Open to a quick chat?
+  Mubarak Ibrahim
+  https://codeswot.me
+  github.com/codeswot
+
+USER PROFILE
 - Name: {name}
-- Core skills: {core_skills}
 - Portfolio: {portfolio}
-- GitHub: {github}
-- Has attached: CV ({cv_filename}) and 2 recommendation letters
+- GitHub handle: {github_handle}
 
-JOB:
+EXPERIENCE_ANCHOR (use ONE matching anchor, paraphrased, in body):
+{experience_anchor}
+
+JOB
 - Title: {title}
 - Company: {company}
 - Description: {description}
 
-HIRING MANAGER (if known — address by first name in opening):
+HIRING MANAGER
 - Name: {hm_name}
 - Title: {hm_position}
 
-COMPANY RESEARCH (use to personalise the opening sentence):
+COMPANY RESEARCH
 - One-liner: {research_one_liner}
 - Industry: {research_industry}
 - Tech stack: {research_tech_stack}
@@ -47,10 +67,26 @@ COMPANY RESEARCH (use to personalise the opening sentence):
 
 Return STRICT JSON only:
 {{
-  "subject": "concise subject line, under 60 chars",
-  "body": "the email body, plaintext, with \\n line breaks"
+  "subject": "short specific subject line, under 55 chars",
+  "body": "email body, plaintext with \\n line breaks"
 }}
 """
+
+
+def _pick_anchor(profile: dict, job: dict) -> str:
+    anchors = profile.get("experience_anchors") or {}
+    if not anchors:
+        return ""
+    haystack = " ".join([
+        (job.get("job_title") or ""),
+        (job.get("job_description") or "")[:1500],
+        " ".join(job.get("ai_tags") or []),
+    ]).lower()
+    priority = ["flutter", "nostr", "lightning", "bitcoin", "nestjs", "typescript"]
+    for key in priority:
+        if key in haystack and key in anchors:
+            return anchors[key]
+    return anchors.get("default", "")
 
 
 def _split_payload(payload: dict) -> tuple[dict, dict, dict]:
@@ -63,11 +99,9 @@ def draft(payload: dict, profile: dict) -> dict:
     job, research, hm = _split_payload(payload)
     prompt = PROMPT.format(
         name=profile.get("name", ""),
-        core_skills=", ".join(profile.get("core_skills", [])),
         portfolio=profile.get("links", {}).get("portfolio", ""),
-        github=profile.get("links", {}).get("github", ""),
         github_handle=profile.get("handle", ""),
-        cv_filename=Path(profile.get("resume_path", "cv.docx")).name,
+        experience_anchor=_pick_anchor(profile, job),
         title=job.get("job_title", ""),
         company=job.get("company", ""),
         description=(job.get("job_description", "") or "")[:1500],
@@ -78,7 +112,7 @@ def draft(payload: dict, profile: dict) -> dict:
         research_tech_stack=", ".join(research.get("tech_stack") or []) or "(unknown)",
         research_summary=(research.get("summary") or "")[:600] or "(none)",
     )
-    return generate_json(prompt, temperature=0.4)
+    return generate_json(prompt, temperature=0.75)
 
 
 def main() -> None:

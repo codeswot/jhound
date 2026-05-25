@@ -16,16 +16,16 @@ if (!RESEND_API_KEY) {
 
 const resend = new Resend(RESEND_API_KEY);
 
-function loadAttachments(tier) {
+function loadAttachments(tier, role) {
     const tier1Cv = path.join(RESOURCES, 'cv_tier1.docx');
-    const defaultCv = path.join(RESOURCES, 'cv.docx');
     const useTier1 = tier === 1 && fs.existsSync(tier1Cv);
+    const isFlutter = /flutter|dart|mobile/i.test(role || '');
 
-    const files = [
-        useTier1 ? 'cv_tier1.docx' : 'cv.docx',
-        'recommendation_flutter.pdf',
-        'recomendation_flutter_plus.pdf',
-    ];
+    const files = [useTier1 ? 'cv_tier1.docx' : 'cv.docx'];
+    if (isFlutter) {
+        files.push('recommendation_flutter_plus.pdf');
+        files.push('recommendation_flutter.pdf');
+    }
     return files
         .map((name) => path.join(RESOURCES, name))
         .filter((p) => fs.existsSync(p))
@@ -57,7 +57,8 @@ async function main() {
     if (payload.references) headers['References'] = payload.references;
 
     const tier = Number(payload.tier ?? payload.ai_priority_tier ?? 0) || 0;
-    const attachments = payload.skip_attachments ? [] : loadAttachments(tier);
+    const role = payload.role || payload.job_title || payload.subject || '';
+    const attachments = payload.skip_attachments ? [] : loadAttachments(tier, role);
 
     const sendArgs = {
         from: FROM,

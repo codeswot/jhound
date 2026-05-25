@@ -68,20 +68,30 @@ Copy `docker-compose.override.yml.example` → `docker-compose.override.yml` (gi
 
 ## Production deployment (Dokploy on Debian 13 VPS)
 
-Dokploy uses Docker Compose under the hood and routes traffic via Traefik. The compose file is already production-shaped:
+Dokploy uses Docker Compose under the hood. With a domain you get Traefik+TLS; without a domain you access services by `<vps-ip>:<port>`.
 
-- **Internal services** (`postgres`, `redis`) bind no host ports → not reachable from the public internet, only over the internal Docker network.
-- **n8n** is the only externally-routed service. Dokploy's UI lets you assign a domain (e.g. `jhound.codeswot.me`) and Traefik handles TLS via Let's Encrypt automatically.
-- **Healthchecks** on all three services give Dokploy accurate up/down status.
-- Named volumes (`n8n_data`, `postgres_data`, `redis_data`) persist across deploys.
+- **Internal services** (`postgres`, `redis`) bind no host ports → not reachable from public internet, only over the internal Docker network.
+- **Host-published ports** (compose `ports:`):
+  - `5678` — n8n UI + webhooks
+  - `3001` — Metabase (default `METABASE_HOST_PORT`, set in `.env`). **Dokploy itself uses 3000**, so do not map Metabase there.
+  - `5050` — pgAdmin (only with `--profile admin`)
+- **Healthchecks** on every service give Dokploy accurate up/down status.
+- Named volumes (`n8n_data`, `postgres_data`, `redis_data`, `metabase_data`) persist across deploys.
 
-### Steps in Dokploy
+### Steps in Dokploy (no-domain, IP-only deploy)
 
 1. **Create application** → type: `Docker Compose` → connect this repo (or paste the compose file).
 2. **Build** uses `Dockerfile.n8n` automatically (compose `build:` context).
-3. **Environment** tab → paste your `.env` values. Set `WEBHOOK_URL` to the public URL (e.g. `https://jhound.codeswot.me`) — Resend uses this to build the inbound webhook target.
-4. **Domains** tab → add your domain → port `5678`. Enable HTTPS.
-5. **Deploy**. First build is ~3-5 min (Chromium + Python deps); subsequent deploys reuse the cached layers.
+3. **Environment** tab → paste your `.env`. Critical values for IP-only deploy:
+   - `WEBHOOK_URL=http://<vps-ip>:5678` (Resend + n8n external webhook callers reach this)
+   - `N8N_INTERNAL_URL=http://localhost:5678` (the Nostr listener uses this — internal, no public round-trip)
+   - `METABASE_HOST_PORT=3001` (or any free port; do NOT use 3000 — that's Dokploy)
+4. **Domains** tab → leave empty if no domain. Otherwise add domain → port `5678` → enable HTTPS.
+5. **Deploy**. First build ~1–2 min, subsequent deploys reuse cache.
+
+After deploy, services are reachable at:
+- n8n UI: `http://<vps-ip>:5678`
+- Metabase: `http://<vps-ip>:3001`
 
 ### Post-deploy one-time setup
 
@@ -95,8 +105,8 @@ docker exec -it jHound-n8n python3 /home/node/tests/test_pipeline.py
 
 Then:
 
-- Open `https://your-domain` → import `workflows/*.json` → activate each
-- In Resend dashboard, set the inbound webhook URL to `https://your-domain/webhook/${RESEND_WEBHOOK_PATH}` and copy the Svix secret into `RESEND_WEBHOOK_SECRET`
+- Open `http://<vps-ip>:5678` (or your domain). Workflows auto-import + activate on first boot.
+- In Resend dashboard, set the inbound webhook URL to `http://<vps-ip>:5678/webhook/${RESEND_WEBHOOK_PATH}` (or `https://your-domain/...` if you have one) and copy the Svix secret into `RESEND_WEBHOOK_SECRET`.
 
 ### What Dokploy buys you
 

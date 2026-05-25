@@ -393,7 +393,8 @@ async function listenForDMs(webhookUrl) {
     const sk = nip19.decode(CONFIG.nsec).data;
     const ownPk = getPublicKey(sk);
     const senderPub = CONFIG.targetNpub ? nip19.decode(CONFIG.targetNpub).data : ownPk;
-    const hookUrl = webhookUrl || (process.env.WEBHOOK_URL ? process.env.WEBHOOK_URL + '/webhook/jhound-nostr-inbound' : 'http://localhost:5678/webhook/jhound-nostr-inbound');
+    const baseUrl = webhookUrl ? webhookUrl.replace(/\/webhook\/.*$/, '') : (process.env.N8N_INTERNAL_URL || 'http://localhost:5678');
+    const hookUrl = webhookUrl && webhookUrl.includes('/webhook/') ? webhookUrl : `${baseUrl}/webhook/jhound-nostr-inbound`;
 
     const LOOKBACK_SEC = 600;
     const seen = new Set();

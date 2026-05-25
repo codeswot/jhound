@@ -123,6 +123,17 @@
       }
     },
     {
+      "id": "notify_done",
+      "name": "Nostr Discovery Complete",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [940, 580],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "command": "=printf %s '✅ Discovery complete.\nAccepted: {{ (JSON.parse($json.stdout || '{}').accepted || []).length }}  •  Rejected: {{ (JSON.parse($json.stdout || '{}').rejected || []).length }}\nProcessing applications now — alerts incoming per job.' | node /home/node/scripts/nostr_notifier.js send -"
+      }
+    },
+    {
       "id": "log_run",
       "name": "Log Discovery Run",
       "type": "n8n-nodes-base.executeCommand",
@@ -146,6 +157,7 @@
     "Scrape + AI Filter (pipe)": {
       "main": [[
         { "node": "Parse Filter Output", "type": "main", "index": 0 },
+        { "node": "Nostr Discovery Complete", "type": "main", "index": 0 },
         { "node": "Log Discovery Run", "type": "main", "index": 0 }
       ]]
     },

@@ -94,7 +94,7 @@
       "typeVersion": 2,
       "position": [
         1380,
-        300
+        420
       ],
       "parameters": {
         "jsCode": "const items = $('Parse Output').all().map(i => i.json);\nconst top = items.slice(0, 5);\nconst lines = top.map(i => {\n  const tag = i.bounty_amount ? `$${i.bounty_amount}` : (i.stars ? `★${i.stars}` : i.repository);\n  const url = i.url || `https://github.com/${i.repository || ''}`;\n  return `• ${i.title} — ${tag}\\n  ${url}`;\n});\nconst message = items.length\n  ? `🌟 OSS Opportunities Today (${items.length})\\n\\n${lines.join('\\n\\n')}`\n  : null;\nreturn [{ json: { count: items.length, message, items: top } }];"

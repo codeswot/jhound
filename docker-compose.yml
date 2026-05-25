@@ -19,6 +19,7 @@ services:
       - N8N_PROTOCOL=http
       - NODE_ENV=production
       - WEBHOOK_URL=${WEBHOOK_URL}
+      - N8N_INTERNAL_URL=${N8N_INTERNAL_URL:-http://localhost:5678}
       - GENERIC_TIMEZONE=Africa/Lagos
       - EXECUTIONS_DATA_PRUNE=true
       - EXECUTIONS_DATA_MAX_AGE=168
@@ -40,8 +41,8 @@ services:
       - APOLLO_CACHE_DAYS=${APOLLO_CACHE_DAYS:-30}
       - RESEND_API_KEY=${RESEND_API_KEY:-}
       - USER_EMAIL=${USER_EMAIL}
-      - NOSTR_NSEC=${NOSTR_NSEC-nsec1jv2hm45d2flqxu75edqxy97up7n4z6l6x8y329d7jw5kdjkey3wsw4d4rw}
-      - NOSTR_TARGET_NPUB=${NOSTR_TARGET_NPUB:-npub15rxzrz53wzy3v0dttkmxjr27s5rwkpf93ujmuzveh52ma68erm7srhlgsl}
+      - NOSTR_NSEC=${NOSTR_NSEC:?NOSTR_NSEC is required — run `node scripts/nostr_notifier.js keygen` to generate}
+      - NOSTR_TARGET_NPUB=${NOSTR_TARGET_NPUB:?NOSTR_TARGET_NPUB is required — paste your personal npub here}
       - NOSTR_RELAYS=${NOSTR_RELAYS:-wss://relay.damus.io,wss://relay.primal.net,wss://nos.lol}
       - RESEND_WEBHOOK_PATH=${RESEND_WEBHOOK_PATH:-jhound-resend-inbound-CHANGE_ME}
       - RESEND_WEBHOOK_SECRET=${RESEND_WEBHOOK_SECRET:-}
@@ -132,7 +133,7 @@ services:
     container_name: jHound-metabase
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "${METABASE_HOST_PORT:-3001}:3000"
     environment:
       - MB_SITE_NAME=jHound
       - MB_SITE_LOCALE=en

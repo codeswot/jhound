@@ -1,0 +1,317 @@
+{
+  "id": "jhound03notification",
+  "name": "jHound — 03 Notifications",
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Lagos"
+  },
+  "tags": [
+    {
+      "name": "jhound"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "daily_schedule",
+      "name": "Schedule Fri 8PM WAT",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        200
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 20 * * 5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "weekly_schedule",
+      "name": "Schedule Sun 6PM WAT",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        420
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 18 * * 0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "daily_stats",
+      "name": "Query Today Stats",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        480,
+        200
+      ],
+      "parameters": {
+        "command": "printf %s '{\"name\":\"today_stats\"}' | python3 /home/node/scripts/db.py query"
+      }
+    },
+    {
+      "id": "parse_today_stats",
+      "name": "Parse Today Stats",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        200
+      ],
+      "parameters": {
+        "jsCode": "const res = JSON.parse($input.first().json.stdout || '{}');\nreturn [{ json: res?.rows?.[0] || {} }];"
+      }
+    },
+    {
+      "id": "hunter_quota",
+      "name": "Fetch Hunter Quota",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        720,
+        200
+      ],
+      "parameters": {
+        "command": "python3 /home/node/scripts/email_finder.py --quota"
+      }
+    },
+    {
+      "id": "merge_summary",
+      "name": "Merge Stats + Quota",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        200
+      ],
+      "parameters": {
+        "jsCode": "const stats = $('Parse Today Stats').first().json;\nconst quotaRaw = ($input.first().json.stdout || '').trim();\nlet hunter = null;\ntry {\n  const parsed = quotaRaw ? JSON.parse(quotaRaw) : null;\n  hunter = parsed && parsed.hunter ? parsed.hunter : parsed;\n} catch {}\nreturn [{ json: { ...stats, hunter } }];"
+      }
+    },
+    {
+      "id": "wa_daily",
+      "name": "Send Nostr Daily",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        200
+      ],
+      "parameters": {
+        "command": "=node /home/node/scripts/nostr_notifier.js daily-summary '{{ JSON.stringify($json).replace(/'/g, \"'\\\\''\") }}'"
+      }
+    },
+    {
+      "id": "flush_tier2",
+      "name": "Flush Tier-2 Batch",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1440,
+        200
+      ],
+      "parameters": {
+        "command": "node /home/node/scripts/nostr_notifier.js flush-tier2-batch"
+      }
+    },
+    {
+      "id": "weekly_stats",
+      "name": "Query Week Stats",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        480,
+        420
+      ],
+      "parameters": {
+        "command": "printf %s '{\"name\":\"weekly_digest\"}' | python3 /home/node/scripts/db.py query"
+      }
+    },
+    {
+      "id": "weekly_jobs",
+      "name": "Query Weekly Jobs",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        700,
+        420
+      ],
+      "parameters": {
+        "command": "printf %s '{\"name\":\"weekly_jobs\"}' | python3 /home/node/scripts/db.py query"
+      }
+    },
+    {
+      "id": "build_weekly_html",
+      "name": "Build Weekly HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        420
+      ],
+      "parameters": {
+        "jsCode": "const statsRes = JSON.parse($('Query Week Stats').first().json.stdout || '{}');\nconst row = (statsRes.rows && statsRes.rows[0]) || {};\nconst totals = row.totals || {};\nconst sources = row.sources || [];\nconst companies = row.top_companies || [];\n\nconst jobsRes = JSON.parse($input.first().json.stdout || '{}');\nconst jobs = jobsRes.rows || [];\n\nconst esc = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');\nconst num = (n) => Number(n ?? 0).toLocaleString();\nconst pct = (n) => `${Number(n ?? 0)}%`;\nconst tierColor = (t) => t === 1 ? '#9fe88f' : t === 2 ? '#ffb86b' : '#888';\n\nconst weekStart = new Date(Date.now() - 7*24*60*60*1000).toISOString().slice(0,10);\nconst weekEnd = new Date().toISOString().slice(0,10);\n\nconst sourceRows = sources.length ? sources.map(s => `<tr>\n  <td style=\"padding:10px 12px;border-bottom:1px solid #2a2a2a;font-weight:600;color:#fff\">${esc(s.source_board)}</td>\n  <td style=\"padding:10px 12px;border-bottom:1px solid #2a2a2a;text-align:right;color:#fff\">${num(s.total_jobs)}</td>\n  <td style=\"padding:10px 12px;border-bottom:1px solid #2a2a2a;text-align:right;color:#9fe88f\">${num(s.tier1_jobs)}</td>\n  <td style=\"padding:10px 12px;border-bottom:1px solid #2a2a2a;text-align:right;color:#9ec5ff\">${num(s.email_sent)}</td>\n  <td style=\"padding:10px 12px;border-bottom:1px solid #2a2a2a;text-align:right;color:#ffb86b\">${num(s.easy_apply)}</td>\n  <td style=\"padding:10px 12px;border-bottom:1px solid #2a2a2a;text-align:right;color:#bbb\">${num(s.manual)}</td>\n  <td style=\"padding:10px 12px;border-bottom:1px solid #2a2a2a;text-align:right;color:#fff\">${pct(s.response_rate)}</td>\n</tr>`).join('') : `<tr><td colspan=\"7\" style=\"padding:14px;color:#888;text-align:center\">No applications in the last 7 days.</td></tr>`;\n\nconst companyChips = companies.length\n  ? companies.map(c => `<span style=\"display:inline-block;background:#2a2a2a;color:#eee;padding:6px 10px;border-radius:14px;margin:3px;font-size:13px\">${esc(c.company)} <span style=\"color:#888\">×${c.n}</span></span>`).join('')\n  : '<span style=\"color:#888\">No companies yet</span>';\n\nconst jobCard = (j) => {\n  const tier = j.ai_priority_tier ?? 0;\n  const tags = (j.tech_stack || []).slice(0, 6).map(t => `<span style=\"display:inline-block;background:#1f1f1f;color:#9ec5ff;padding:3px 8px;border-radius:10px;margin:2px;font-size:11px\">${esc(t)}</span>`).join('');\n  const meta = [j.industry, j.hq_location, j.location].filter(Boolean).map(esc).join(' • ');\n  const contact = j.hiring_manager_email\n    ? `<div style=\"margin-top:6px;color:#9fe88f;font-size:13px\">✉ ${j.hiring_manager_name ? esc(j.hiring_manager_name) + ' — ' : ''}<a href=\"mailto:${esc(j.hiring_manager_email)}\" style=\"color:#9fe88f;text-decoration:none\">${esc(j.hiring_manager_email)}</a></div>`\n    : '';\n  const links = [\n    j.website ? `<a href=\"${esc(j.website)}\" style=\"color:#9ec5ff;text-decoration:none;margin-right:10px\">🌐 site</a>` : '',\n    j.company_linkedin ? `<a href=\"${esc(j.company_linkedin)}\" style=\"color:#9ec5ff;text-decoration:none;margin-right:10px\">💼 linkedin</a>` : '',\n    j.github ? `<a href=\"${esc(j.github)}\" style=\"color:#9ec5ff;text-decoration:none;margin-right:10px\">🐙 github</a>` : '',\n    j.job_url ? `<a href=\"${esc(j.job_url)}\" style=\"color:#9ec5ff;text-decoration:none;margin-right:10px\">📄 job</a>` : '',\n  ].filter(Boolean).join('');\n  return `<div style=\"background:#141414;border:1px solid #2a2a2a;border-radius:10px;padding:14px;margin-bottom:10px\">\n    <div style=\"display:flex;justify-content:space-between;gap:10px;align-items:start\">\n      <div style=\"flex:1\">\n        <div style=\"font-weight:700;color:#fff;font-size:15px\">${esc(j.job_title)} <span style=\"color:#888;font-weight:400\">— ${esc(j.company)}</span></div>\n        ${meta ? `<div style=\"color:#888;font-size:12px;margin-top:3px\">${meta}</div>` : ''}\n      </div>\n      <div style=\"text-align:right;white-space:nowrap\">\n        <span style=\"background:${tierColor(tier)};color:#000;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700\">T${tier || '-'}</span>\n        <span style=\"color:#888;font-size:12px;margin-left:6px\">${j.ai_job_match_score ?? '-'}/100</span>\n      </div>\n    </div>\n    ${j.one_liner ? `<div style=\"color:#ccc;font-size:13px;margin-top:8px\">${esc(j.one_liner)}</div>` : ''}\n    ${tags ? `<div style=\"margin-top:8px\">${tags}</div>` : ''}\n    <div style=\"color:#888;font-size:12px;margin-top:8px\">${esc(j.application_method)} • ${esc(j.status || '')} • ${esc(j.source_board)}</div>\n    ${contact}\n    ${links ? `<div style=\"margin-top:6px;font-size:13px\">${links}</div>` : ''}\n  </div>`;\n};\n\nconst t1 = jobs.filter(j => j.ai_priority_tier === 1);\nconst t2 = jobs.filter(j => j.ai_priority_tier === 2);\nconst other = jobs.filter(j => j.ai_priority_tier !== 1 && j.ai_priority_tier !== 2);\nconst jobsSection = jobs.length\n  ? [\n      t1.length ? `<h3 style=\"color:#9fe88f;font-size:14px;margin:16px 0 8px\">Tier 1 — ${t1.length}</h3>${t1.map(jobCard).join('')}` : '',\n      t2.length ? `<h3 style=\"color:#ffb86b;font-size:14px;margin:16px 0 8px\">Tier 2 — ${t2.length}</h3>${t2.map(jobCard).join('')}` : '',\n      other.length ? `<h3 style=\"color:#888;font-size:14px;margin:16px 0 8px\">Untagged — ${other.length}</h3>${other.map(jobCard).join('')}` : '',\n    ].join('')\n  : '<div style=\"color:#888;text-align:center;padding:14px\">No jobs this week.</div>';\n\nconst html = `<!DOCTYPE html>\n<html><head><meta charset=\"utf-8\"><title>jHound Weekly Digest</title></head>\n<body style=\"margin:0;padding:0;background:#0e0e0e;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#eee\">\n  <div style=\"max-width:720px;margin:0 auto;padding:28px 22px\">\n    <h1 style=\"margin:0 0 4px;font-size:24px;color:#fff\">🎯 jHound Weekly Digest</h1>\n    <div style=\"color:#888;font-size:13px;margin-bottom:24px\">${weekStart} → ${weekEnd}</div>\n\n    <div style=\"display:flex;flex-wrap:wrap;gap:10px;margin-bottom:24px\">\n      <div style=\"flex:1;min-width:130px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:14px\"><div style=\"color:#888;font-size:11px;text-transform:uppercase\">Total</div><div style=\"font-size:26px;font-weight:700;color:#fff\">${num(totals.total)}</div></div>\n      <div style=\"flex:1;min-width:130px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:14px\"><div style=\"color:#888;font-size:11px;text-transform:uppercase\">Tier 1</div><div style=\"font-size:26px;font-weight:700;color:#9fe88f\">${num(totals.tier1)}</div></div>\n      <div style=\"flex:1;min-width:130px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:14px\"><div style=\"color:#888;font-size:11px;text-transform:uppercase\">Email Sent</div><div style=\"font-size:26px;font-weight:700;color:#9ec5ff\">${num(totals.email_sent)}</div></div>\n      <div style=\"flex:1;min-width:130px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:14px\"><div style=\"color:#888;font-size:11px;text-transform:uppercase\">Easy Apply</div><div style=\"font-size:26px;font-weight:700;color:#ffb86b\">${num(totals.easy_apply)}</div></div>\n      <div style=\"flex:1;min-width:130px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:14px\"><div style=\"color:#888;font-size:11px;text-transform:uppercase\">Responses</div><div style=\"font-size:26px;font-weight:700;color:#fff\">${num(totals.responses)}</div></div>\n    </div>\n\n    <h2 style=\"font-size:16px;color:#fff;margin:24px 0 10px\">Jobs This Week (${jobs.length})</h2>\n    ${jobsSection}\n\n    <h2 style=\"font-size:16px;color:#fff;margin:24px 0 10px\">Sources</h2>\n    <table cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;background:#141414;border:1px solid #2a2a2a;border-radius:10px;overflow:hidden\">\n      <thead><tr style=\"background:#1a1a1a\">\n        <th style=\"text-align:left;padding:10px 12px;font-size:12px;color:#888\">Board</th>\n        <th style=\"text-align:right;padding:10px 12px;font-size:12px;color:#888\">Total</th>\n        <th style=\"text-align:right;padding:10px 12px;font-size:12px;color:#888\">Tier 1</th>\n        <th style=\"text-align:right;padding:10px 12px;font-size:12px;color:#888\">Email</th>\n        <th style=\"text-align:right;padding:10px 12px;font-size:12px;color:#888\">EasyApp</th>\n        <th style=\"text-align:right;padding:10px 12px;font-size:12px;color:#888\">Manual</th>\n        <th style=\"text-align:right;padding:10px 12px;font-size:12px;color:#888\">Resp %</th>\n      </tr></thead>\n      <tbody>${sourceRows}</tbody>\n    </table>\n\n    <h2 style=\"font-size:16px;color:#fff;margin:24px 0 10px\">Top Companies</h2>\n    <div style=\"background:#141414;border:1px solid #2a2a2a;border-radius:10px;padding:10px\">${companyChips}</div>\n\n    <div style=\"color:#666;font-size:11px;margin-top:28px;text-align:center\">jHound · automated job hunter</div>\n  </div>\n</body></html>`;\n\nconst plain = [\n  `jHound Weekly Digest (${weekStart} → ${weekEnd})`,\n  '',\n  `Total: ${totals.total ?? 0} | Tier1: ${totals.tier1 ?? 0} | Email: ${totals.email_sent ?? 0} | EasyApply: ${totals.easy_apply ?? 0} | Manual: ${totals.manual ?? 0} | Responses: ${totals.responses ?? 0}`,\n  '',\n  `Jobs this week (${jobs.length}):`,\n  ...jobs.map(j => `  - [T${j.ai_priority_tier ?? '-'}] ${j.job_title} — ${j.company} (${j.application_method}) ${j.hiring_manager_email ? '<' + j.hiring_manager_email + '> ' : ''}${j.website || j.job_url}`),\n  '',\n  'Sources:',\n  ...sources.map(s => `  - ${s.source_board}: ${s.total_jobs} (T1:${s.tier1_jobs}, email:${s.email_sent}, easy:${s.easy_apply}, manual:${s.manual}, resp:${s.response_rate}%)`),\n  '',\n  'Top companies:',\n  ...companies.map(c => `  - ${c.company} × ${c.n}`),\n].join('\\n');\n\nreturn [{ json: { to: $env.USER_EMAIL, subject: `jHound Weekly Digest — ${weekEnd}`, body: plain, html, skip_attachments: true } }];"
+      }
+    },
+    {
+      "id": "nostr_weekly_jobs",
+      "name": "Send Nostr Weekly Jobs",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        920,
+        560
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify(JSON.parse($json.stdout || '{}').rows || []).replace(/'/g, \"'\\\\''\") }}' | node /home/node/scripts/nostr_notifier.js weekly-jobs"
+      }
+    },
+    {
+      "id": "weekly_email",
+      "name": "Send Weekly Digest Email",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1160,
+        420
+      ],
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify($json).replace(/'/g, \"'\\\\''\") }}' | node /home/node/scripts/email_sender.js"
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Fri 8PM WAT": {
+      "main": [
+        [
+          {
+            "node": "Query Today Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Today Stats": {
+      "main": [
+        [
+          {
+            "node": "Parse Today Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Today Stats": {
+      "main": [
+        [
+          {
+            "node": "Fetch Hunter Quota",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Hunter Quota": {
+      "main": [
+        [
+          {
+            "node": "Merge Stats + Quota",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Stats + Quota": {
+      "main": [
+        [
+          {
+            "node": "Send Nostr Daily",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Nostr Daily": {
+      "main": [
+        [
+          {
+            "node": "Flush Tier-2 Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Sun 6PM WAT": {
+      "main": [
+        [
+          {
+            "node": "Query Week Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Week Stats": {
+      "main": [
+        [
+          {
+            "node": "Query Weekly Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Weekly Jobs": {
+      "main": [
+        [
+          {
+            "node": "Build Weekly HTML",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Nostr Weekly Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Weekly HTML": {
+      "main": [
+        [
+          {
+            "node": "Send Weekly Digest Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

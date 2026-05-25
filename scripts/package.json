@@ -1,0 +1,14 @@
+{
+  "name": "jhound-scripts",
+  "version": "1.0.0",
+  "description": "Node.js side of jHound — Nostr DMs + Resend email sender",
+  "private": true,
+  "scripts": {
+    "nostr:keygen": "node nostr_notifier.js keygen",
+    "email:send": "node email_sender.js"
+  },
+  "dependencies": {
+    "nostr-tools": "^2.10.0",
+    "resend": "^4.0.0"
+  }
+}

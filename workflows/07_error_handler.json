@@ -1,0 +1,65 @@
+{
+  "id": "jhound07errorhandler",
+  "name": "jHound — 07 Error Handler",
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Lagos"
+  },
+  "tags": [
+    {
+      "name": "jhound"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "error_trigger",
+      "name": "On Workflow Error",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "parameters": {}
+    },
+    {
+      "id": "extract",
+      "name": "Extract Error Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "parameters": {
+        "jsCode": "const e = $input.first().json;\nconst exec = e.execution || {};\nconst wf = e.workflow || {};\nconst last = exec.lastNodeExecuted;\nconst errObj = exec.error || {};\nconst payload = {\n  workflow_name: wf.name || '(unknown)',\n  workflow_id: wf.id || null,\n  execution_id: exec.id || null,\n  execution_url: exec.url || null,\n  failed_node: last || '(unknown)',\n  error_message: errObj.message || (errObj.stack || '').slice(0, 400) || '(no message)',\n  metadata: { mode: exec.mode, retryOf: exec.retryOf || null },\n};\nreturn [{ json: payload }];"
+      }
+    },
+    {
+      "id": "log_execution",
+      "name": "Log Execution Error",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [700, 220],
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify({ workflow_name: $json.workflow_name, execution_id: $json.execution_id, status: 'error', message: $json.error_message, metadata: { failed_node: $json.failed_node, execution_url: $json.execution_url, workflow_id: $json.workflow_id, ...($json.metadata || {}) } }).replace(/'/g, \"'\\\\''\") }}' | python3 /home/node/scripts/db.py log-execution"
+      }
+    },
+    {
+      "id": "wa_alert",
+      "name": "Nostr Error Alert",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [700, 380],
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify($json).replace(/'/g, \"'\\\\''\") }}' | node /home/node/scripts/nostr_notifier.js error-alert"
+      }
+    }
+  ],
+  "connections": {
+    "On Workflow Error": {
+      "main": [[{ "node": "Extract Error Context", "type": "main", "index": 0 }]]
+    },
+    "Extract Error Context": {
+      "main": [[
+        { "node": "Log Execution Error", "type": "main", "index": 0 },
+        { "node": "Nostr Error Alert", "type": "main", "index": 0 }
+      ]]
+    }
+  }
+}

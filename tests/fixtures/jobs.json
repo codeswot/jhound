@@ -1,0 +1,86 @@
+[
+  {
+    "job_title": "Senior Bitcoin Lightning Engineer",
+    "company": "Voltage",
+    "company_domain": "voltage.cloud",
+    "job_url": "https://example.test/jobs/bitcoin-1",
+    "job_description": "Build production Lightning infrastructure with LDK, BTCPay, and Core Lightning. Fully remote.",
+    "source_board": "BitcoinerJobs",
+    "location": "Remote",
+    "is_remote": true,
+    "_expected": {"tier": 1, "min_score": 80, "accepted": true}
+  },
+  {
+    "job_title": "Nostr Protocol Backend",
+    "company": "DamusLabs",
+    "company_domain": "damus.io",
+    "job_url": "https://example.test/jobs/nostr-1",
+    "job_description": "Backend dev for Nostr relays. TypeScript + Rust. Remote, worldwide.",
+    "source_board": "RemoteOK",
+    "location": "Worldwide",
+    "is_remote": true,
+    "_expected": {"tier": 1, "min_score": 80, "accepted": true}
+  },
+  {
+    "job_title": "NestJS Backend Engineer",
+    "company": "Fintech Co",
+    "company_domain": "fintechco.test",
+    "job_url": "https://example.test/jobs/nestjs-1",
+    "job_description": "NestJS, PostgreSQL, Redis. Build payment APIs. Remote-first team.",
+    "source_board": "WeWorkRemotely",
+    "location": "Remote (Global)",
+    "is_remote": true,
+    "_expected": {"tier": 2, "min_score": 50, "accepted": true}
+  },
+  {
+    "job_title": "Flutter Developer",
+    "company": "Mobile Startup",
+    "company_domain": "mobilestartup.test",
+    "job_url": "https://example.test/jobs/flutter-1",
+    "job_description": "Build cross-platform Flutter apps. Remote position.",
+    "source_board": "RemoteOK",
+    "location": "Remote",
+    "is_remote": true,
+    "_expected": {"tier": 2, "min_score": 50, "accepted": true}
+  },
+  {
+    "job_title": "Senior Java Developer (Onsite London)",
+    "company": "BankCorp",
+    "job_url": "https://example.test/jobs/onsite-1",
+    "job_description": "Must be on-site in London. Java/Spring backend.",
+    "source_board": "LinkedIn",
+    "location": "London, UK (Onsite)",
+    "is_remote": false,
+    "_expected": {"accepted": false, "reject_reason": "not_remote"}
+  },
+  {
+    "job_title": "Hybrid SRE",
+    "company": "SomeCorp",
+    "job_url": "https://example.test/jobs/hybrid-1",
+    "job_description": "Hybrid role, 3 days in office. Kubernetes, Terraform.",
+    "source_board": "LinkedIn",
+    "location": "Hybrid Berlin",
+    "is_remote": false,
+    "_expected": {"accepted": false, "reject_reason": "not_remote"}
+  },
+  {
+    "job_title": "PHP Developer (US Only)",
+    "company": "USCorp",
+    "job_url": "https://example.test/jobs/usonly-1",
+    "job_description": "Remote but US citizens only. Legacy PHP codebase.",
+    "source_board": "Indeed",
+    "location": "Remote - US Only",
+    "is_remote": true,
+    "_expected": {"accepted": false, "reject_reason": "not_remote"}
+  },
+  {
+    "job_title": "Sales Manager",
+    "company": "SalesCo",
+    "job_url": "https://example.test/jobs/sales-1",
+    "job_description": "Sell our SaaS to enterprise clients. Remote.",
+    "source_board": "LinkedIn",
+    "location": "Remote",
+    "is_remote": true,
+    "_expected": {"accepted": false, "reject_reason": "no_skill_match"}
+  }
+]

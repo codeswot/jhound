@@ -1,0 +1,165 @@
+{
+  "id": "jhound01jobdiscover",
+  "name": "jHound — 01 Job Discovery",
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Lagos"
+  },
+  "tags": [{ "name": "jhound" }],
+  "nodes": [
+    {
+      "id": "trigger",
+      "name": "Schedule Fri 8AM-4PM WAT",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 200],
+      "parameters": {
+        "rule": { "interval": [{ "field": "cronExpression", "expression": "0 8,10,12,14,16 * * 5" }] }
+      }
+    },
+    {
+      "id": "discover_webhook",
+      "name": "Manual Discover Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 400],
+      "parameters": {
+        "path": "jhound-discover",
+        "httpMethod": "POST",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "webhookId": "jhound-discover"
+    },
+    {
+      "id": "set_keywords",
+      "name": "Set Keywords",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [460, 300],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "1", "name": "keywords", "type": "array", "value": ["Bitcoin", "Nostr", "Lightning", "NestJS", "Flutter", "TypeScript"] },
+            { "id": "2", "name": "max_jobs", "type": "number", "value": 20 }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "run_pipeline",
+      "name": "Scrape + AI Filter (pipe)",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [700, 300],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "command": "=python3 /home/node/scripts/scrapers/run_all.py --keywords {{ $json.keywords.join(' ') }} --jobspy-per-keyword {{ $json.max_jobs }} | python3 /home/node/scripts/ai/job_filter.py --limit 10",
+        "options": { "timeout": 900 }
+      }
+    },
+    {
+      "id": "parse_ai",
+      "name": "Parse Filter Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [940, 300],
+      "parameters": {
+        "jsCode": "const data = JSON.parse($input.first().json.stdout || '{}');\nconst items = [];\nfor (const job of data.accepted || []) items.push({ json: { ...job, _type: 'accepted' } });\nfor (const job of data.rejected || []) items.push({ json: { ...job, _type: 'rejected' } });\nreturn items;"
+      }
+    },
+    {
+      "id": "split_accept_reject",
+      "name": "Split Accepted/Rejected",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1180, 300],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "loose" },
+          "conditions": [
+            { "id": "1", "leftValue": "={{ $json._type }}", "rightValue": "accepted", "operator": { "type": "string", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "wait_between_apps",
+      "name": "Wait 45s Between Applications",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1420, 100],
+      "parameters": {
+        "amount": 45,
+        "unit": "seconds"
+      }
+    },
+    {
+      "id": "trigger_apply",
+      "name": "Trigger Application Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1660, 100],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.WEBHOOK_URL }}/webhook/jhound-apply",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "log_rejected",
+      "name": "Log Rejected",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1420, 400],
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify({ job_url: $json.job_url, job_title: $json.job_title, company: $json.company, source_board: $json.source_board, reject_reason: $json.reject_reason || 'unknown', reject_details: { ai_reasoning: $json.ai_reasoning, ai_job_match_score: $json.ai_job_match_score } }).replace(/'/g, \"'\\\\''\") }}' | python3 /home/node/scripts/db.py log-rejected"
+      }
+    },
+    {
+      "id": "log_run",
+      "name": "Log Discovery Run",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [940, 460],
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify({ workflow_name: 'jHound — 01 Job Discovery', status: 'success', message: 'Discovery complete', metadata: (JSON.parse($json.stdout || '{}').summary) || {} }).replace(/'/g, \"'\\\\''\") }}' | python3 /home/node/scripts/db.py log-execution"
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Fri 8AM-4PM WAT": {
+      "main": [[{ "node": "Set Keywords", "type": "main", "index": 0 }]]
+    },
+    "Manual Discover Webhook": {
+      "main": [[{ "node": "Set Keywords", "type": "main", "index": 0 }]]
+    },
+    "Set Keywords": {
+      "main": [[{ "node": "Scrape + AI Filter (pipe)", "type": "main", "index": 0 }]]
+    },
+    "Scrape + AI Filter (pipe)": {
+      "main": [[
+        { "node": "Parse Filter Output", "type": "main", "index": 0 },
+        { "node": "Log Discovery Run", "type": "main", "index": 0 }
+      ]]
+    },
+    "Parse Filter Output": {
+      "main": [[{ "node": "Split Accepted/Rejected", "type": "main", "index": 0 }]]
+    },
+    "Split Accepted/Rejected": {
+      "main": [
+        [{ "node": "Wait 45s Between Applications", "type": "main", "index": 0 }],
+        [{ "node": "Log Rejected", "type": "main", "index": 0 }]
+      ]
+    },
+    "Wait 45s Between Applications": {
+      "main": [[{ "node": "Trigger Application Webhook", "type": "main", "index": 0 }]]
+    }
+  }
+}

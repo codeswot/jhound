@@ -1,0 +1,83 @@
+{
+  "id": "jhound08nostrinbound",
+  "name": "jHound — 08 Nostr Inbound",
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Lagos"
+  },
+  "tags": [{ "name": "jhound" }],
+  "nodes": [
+    {
+      "id": "webhook",
+      "name": "Nostr Inbound DM Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "parameters": {
+        "path": "jhound-nostr-inbound",
+        "httpMethod": "POST",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "webhookId": "nostr-inbound"
+    },
+    {
+      "id": "skip_probe",
+      "name": "Skip Boot Probe",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $json.body.from }}",
+              "rightValue": "_boot_probe",
+              "operator": { "type": "string", "operation": "notEquals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "dispatch",
+      "name": "Dispatch Command",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [700, 200],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify($json.body).replace(/'/g, \"'\\\\''\") }}' | node /home/node/scripts/nostr_commands.js",
+        "options": { "timeout": 300 }
+      }
+    },
+    {
+      "id": "log_inbound",
+      "name": "Log Inbound",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [940, 200],
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify({ workflow_name: 'jHound — 08 Nostr Inbound', status: 'success', message: 'inbound dm processed', metadata: { from: $('Nostr Inbound DM Webhook').first().json.body.from, text: ($('Nostr Inbound DM Webhook').first().json.body.text || '').slice(0, 200), event_id: $('Nostr Inbound DM Webhook').first().json.body.id } }).replace(/'/g, \"'\\\\''\") }}' | python3 /home/node/scripts/db.py log-execution"
+      }
+    }
+  ],
+  "connections": {
+    "Nostr Inbound DM Webhook": {
+      "main": [[{ "node": "Skip Boot Probe", "type": "main", "index": 0 }]]
+    },
+    "Skip Boot Probe": {
+      "main": [
+        [{ "node": "Dispatch Command", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Dispatch Command": {
+      "main": [[{ "node": "Log Inbound", "type": "main", "index": 0 }]]
+    }
+  }
+}

@@ -1,0 +1,286 @@
+{
+  "id": "jhound02application",
+  "name": "jHound — 02 Application",
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Lagos"
+  },
+  "tags": [
+    {
+      "name": "jhound"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "webhook",
+      "name": "Webhook: jhound-apply",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "parameters": {
+        "path": "jhound-apply",
+        "httpMethod": "POST",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "webhookId": "jhound-apply"
+    },
+    {
+      "id": "company_research",
+      "name": "Company Research",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [460, 300],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify($json.body).replace(/'/g, \"'\\\\''\") }}' | python3 /home/node/scripts/automation/company_researcher.py --input /dev/stdin",
+        "options": { "timeout": 120 }
+      }
+    },
+    {
+      "id": "parse_research",
+      "name": "Parse Research",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300],
+      "parameters": {
+        "jsCode": "const stdout = ($input.first().json.stdout || '').trim();\nlet research = {};\nlet research_status = 'ok';\ntry {\n  research = stdout ? JSON.parse(stdout) : {};\n  if (!research || typeof research !== 'object' || Object.keys(research).length === 0) research_status = 'empty';\n} catch (e) {\n  research = {};\n  research_status = 'failed';\n}\nconst job = $('Webhook: jhound-apply').first().json.body;\nlet domain = research.domain || job.company_domain || '';\nif (!domain && research.website) {\n  domain = research.website.replace(/^https?:\\/\\//, '').split('/')[0].replace(/^www\\./, '');\n}\nconst jd = [job.job_description, job.description, job.snippet, job.summary].filter(Boolean).join('\\n');\nconst EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/g;\nconst SKIP_DOMAINS = /@(example|test|sentry|yourcompany|noreply|no-reply|donotreply|do-not-reply|users\\.noreply\\.github|sentry\\.io|wixpress|wix|mailchimp|getresponse)\\./i;\nconst SKIP_LOCAL = /^(noreply|no-reply|donotreply|do-not-reply|postmaster|mailer-daemon|notifications?|support|info|admin|webmaster|abuse|privacy|legal|sales|marketing)@/i;\nlet jd_email = null;\nif (jd) {\n  const matches = (jd.match(EMAIL_RE) || []).filter(e => !SKIP_DOMAINS.test(e) && !SKIP_LOCAL.test(e));\n  if (matches.length) jd_email = matches[0];\n}\nreturn [{ json: { job, research, research_status, company_domain: domain, jd_email } }];"
+      }
+    },
+    {
+      "id": "nostr_job_alert",
+      "name": "Nostr Job Alert",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [900, 80],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "command": "=node /home/node/scripts/nostr_notifier.js job-alert '{{ JSON.stringify({ job: { job_title: $json.job.job_title, company: $json.job.company, application_method: ($json.job.has_easy_apply ? 'easy_apply' : 'email'), ai_priority_tier: $json.job.ai_priority_tier, ai_job_match_score: $json.job.ai_job_match_score, job_url: $json.job.job_url }, research: ($json.research_status === 'ok' ? $json.research : null) }).replace(/'/g, \"'\\\\''\") }}'"
+      }
+    },
+    {
+      "id": "save_research",
+      "name": "Save Research",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [2460, 460],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify({ job_url: $('Parse Research').first().json.job.job_url, research: $('Parse Research').first().json.research }).replace(/'/g, \"'\\\\''\") }}' | python3 /home/node/scripts/db.py save-research"
+      }
+    },
+    {
+      "id": "has_easy_apply",
+      "name": "Has Easy Apply?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 360],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $json.job.has_easy_apply }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "wa_fast_apply",
+      "name": "Nostr Fast-Apply Alert",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1140, 260],
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify({ job: $json.job, research: $json.research }).replace(/'/g, \"'\\\\''\") }}' | node /home/node/scripts/nostr_notifier.js fast-apply-link"
+      }
+    },
+    {
+      "id": "record_fast_apply",
+      "name": "Record Fast-Apply",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1380, 260],
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify({ ...$('Parse Research').first().json.job, company_domain: $('Parse Research').first().json.company_domain, application_method: 'manual_easy_apply', status: 'awaiting_user_apply' }).replace(/'/g, \"'\\\\''\") }}' | python3 /home/node/scripts/db.py record-application"
+      }
+    },
+    {
+      "id": "find_email",
+      "name": "Find Email",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1140, 460],
+      "parameters": {
+        "command": "=python3 /home/node/scripts/email_finder.py --domain '{{ $json.company_domain || $json.job.company.toLowerCase().replace(/[^a-z0-9]/g,'') + '.com' }}' --company '{{ $json.job.company }}' --tier {{ $json.job.ai_priority_tier || 2 }}{{ $json.jd_email ? \" --jd-email '\" + $json.jd_email + \"'\" : '' }}",
+        "options": { "timeout": 120 }
+      }
+    },
+    {
+      "id": "has_email",
+      "name": "Email Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1380, 460],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ JSON.parse($json.stdout || '{}').email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "draft_email",
+      "name": "Draft Email (Ollama)",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1620, 400],
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify({ job: $('Parse Research').first().json.job, research: $('Parse Research').first().json.research, hm: { name: JSON.parse($('Find Email').first().json.stdout).hm_name, position: JSON.parse($('Find Email').first().json.stdout).hm_position, linkedin: JSON.parse($('Find Email').first().json.stdout).hm_linkedin } }).replace(/'/g, \"'\\\\''\") }}' | python3 /home/node/scripts/ai/email_drafter.py",
+        "options": { "timeout": 300 }
+      }
+    },
+    {
+      "id": "send_email",
+      "name": "Send via Resend",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1860, 400],
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify({ to: JSON.parse($('Find Email').first().json.stdout).email, subject: JSON.parse($json.stdout).subject, body: JSON.parse($json.stdout).body, tier: $('Parse Research').first().json.job.ai_priority_tier }).replace(/'/g, \"'\\\\''\") }}' | node /home/node/scripts/email_sender.js"
+      }
+    },
+    {
+      "id": "record_email",
+      "name": "Record Email Application",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [2100, 400],
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify({ ...$('Parse Research').first().json.job, company_domain: $('Parse Research').first().json.company_domain, application_method: 'email', status: 'applied', hiring_manager_email: JSON.parse($('Find Email').first().json.stdout).email, hiring_manager_name: JSON.parse($('Find Email').first().json.stdout).hm_name, hiring_manager_linkedin: JSON.parse($('Find Email').first().json.stdout).hm_linkedin, ai_generated_email: JSON.parse($('Draft Email (Ollama)').first().json.stdout), message_id: JSON.parse($json.stdout || '{}').message_id }).replace(/'/g, \"'\\\\''\") }}' | python3 /home/node/scripts/db.py record-application"
+      }
+    },
+    {
+      "id": "record_manual",
+      "name": "Record Manual (no email)",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1620, 540],
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify({ ...$('Parse Research').first().json.job, company_domain: $('Parse Research').first().json.company_domain, application_method: 'manual', status: 'needs_email' }).replace(/'/g, \"'\\\\''\") }}' | python3 /home/node/scripts/db.py record-application"
+      }
+    },
+    {
+      "id": "merge_email_branches",
+      "name": "Merge Email/Manual",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [2340, 460],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "wa_brief",
+      "name": "Nostr Company Brief",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [2560, 460],
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify({ job: $('Parse Research').first().json.job, research: $('Parse Research').first().json.research }).replace(/'/g, \"'\\\\''\") }}' | node /home/node/scripts/nostr_notifier.js company-brief-auto"
+      }
+    },
+    {
+      "id": "log_run",
+      "name": "Log App Run",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [2780, 460],
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify({ workflow_name: 'jHound — 02 Application', status: 'success', message: 'Applied: ' + $('Parse Research').first().json.job.company, metadata: { company: $('Parse Research').first().json.job.company, tier: $('Parse Research').first().json.job.ai_priority_tier } }).replace(/'/g, \"'\\\\''\") }}' | python3 /home/node/scripts/db.py log-execution"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook: jhound-apply": {
+      "main": [[{ "node": "Company Research", "type": "main", "index": 0 }]]
+    },
+    "Company Research": {
+      "main": [[{ "node": "Parse Research", "type": "main", "index": 0 }]]
+    },
+    "Parse Research": {
+      "main": [[
+        { "node": "Nostr Job Alert", "type": "main", "index": 0 },
+        { "node": "Has Easy Apply?", "type": "main", "index": 0 }
+      ]]
+    },
+    "Has Easy Apply?": {
+      "main": [
+        [{ "node": "Nostr Fast-Apply Alert", "type": "main", "index": 0 }],
+        [{ "node": "Find Email", "type": "main", "index": 0 }]
+      ]
+    },
+    "Nostr Fast-Apply Alert": {
+      "main": [[{ "node": "Record Fast-Apply", "type": "main", "index": 0 }]]
+    },
+    "Record Fast-Apply": {
+      "main": [[{ "node": "Save Research", "type": "main", "index": 0 }]]
+    },
+    "Find Email": {
+      "main": [[{ "node": "Email Found?", "type": "main", "index": 0 }]]
+    },
+    "Email Found?": {
+      "main": [
+        [{ "node": "Draft Email (Ollama)", "type": "main", "index": 0 }],
+        [{ "node": "Record Manual (no email)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Draft Email (Ollama)": {
+      "main": [[{ "node": "Send via Resend", "type": "main", "index": 0 }]]
+    },
+    "Send via Resend": {
+      "main": [[{ "node": "Record Email Application", "type": "main", "index": 0 }]]
+    },
+    "Record Email Application": {
+      "main": [[{ "node": "Merge Email/Manual", "type": "main", "index": 0 }]]
+    },
+    "Record Manual (no email)": {
+      "main": [[{ "node": "Merge Email/Manual", "type": "main", "index": 1 }]]
+    },
+    "Merge Email/Manual": {
+      "main": [[{ "node": "Save Research", "type": "main", "index": 0 }]]
+    },
+    "Save Research": {
+      "main": [[{ "node": "Nostr Company Brief", "type": "main", "index": 0 }]]
+    },
+    "Nostr Company Brief": {
+      "main": [[{ "node": "Log App Run", "type": "main", "index": 0 }]]
+    }
+  }
+}

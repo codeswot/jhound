@@ -1,0 +1,110 @@
+{
+  "id": "jhound06manualdig",
+  "name": "jHound — 06 Manual Review Digest",
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Lagos"
+  },
+  "tags": [
+    {
+      "name": "jhound"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "trigger",
+      "name": "Fri 5PM WAT",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 17 * * 5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "query_manual",
+      "name": "Query Manual Queue",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        480,
+        300
+      ],
+      "parameters": {
+        "command": "printf %s '{\"name\":\"needs_manual_review\"}' | python3 /home/node/scripts/db.py query"
+      }
+    },
+    {
+      "id": "send_digest",
+      "name": "Send Nostr Digest",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        720,
+        300
+      ],
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify(JSON.parse($json.stdout || '{\"rows\":[]}').rows).replace(/'/g, \"'\\\\''\") }}' | node /home/node/scripts/nostr_notifier.js manual-digest"
+      }
+    },
+    {
+      "id": "log_run",
+      "name": "Log Manual Digest Run",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        960,
+        300
+      ],
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify({ workflow_name: 'jHound — 06 Manual Review Digest', status: 'success', message: 'Manual queue: ' + (JSON.parse($('Query Manual Queue').item.json.stdout || '{}').rows || []).length + ' items' }).replace(/'/g, \"'\\\\''\") }}' | python3 /home/node/scripts/db.py log-execution"
+      }
+    }
+  ],
+  "connections": {
+    "Fri 5PM WAT": {
+      "main": [
+        [
+          {
+            "node": "Query Manual Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Manual Queue": {
+      "main": [
+        [
+          {
+            "node": "Send Nostr Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Nostr Digest": {
+      "main": [
+        [
+          {
+            "node": "Log Manual Digest Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

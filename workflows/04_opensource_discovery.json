@@ -1,0 +1,252 @@
+{
+  "id": "jhound04opensource",
+  "name": "jHound — 04 Open Source Discovery",
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Lagos"
+  },
+  "tags": [
+    {
+      "name": "jhound"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "trigger",
+      "name": "Schedule Mon-Fri 9AM WAT",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1-5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "find_oss",
+      "name": "Find OSS Opportunities",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        480,
+        300
+      ],
+      "parameters": {
+        "command": "=python3 /home/node/scripts/opensource_finder.py --skills NestJS TypeScript Flutter Bitcoin Nostr --min-bounty 100 --min-score 50",
+        "options": { "timeout": 120 }
+      }
+    },
+    {
+      "id": "parse_oss",
+      "name": "Parse Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const arr = JSON.parse($input.first().json.stdout || '[]');\nreturn arr.map(o => ({ json: o }));"
+      }
+    },
+    {
+      "id": "upsert",
+      "name": "Upsert into DB",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        960,
+        300
+      ],
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify($json).replace(/'/g, \"'\\\\''\") }}' | python3 /home/node/scripts/db.py save-opportunity"
+      }
+    },
+    {
+      "id": "aggregate",
+      "name": "Collapse Upsert Output",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        300
+      ],
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "_upserts",
+        "options": {}
+      }
+    },
+    {
+      "id": "build_digest",
+      "name": "Build OSS Digest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1380,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const items = $('Parse Output').all().map(i => i.json);\nconst top = items.slice(0, 5);\nconst lines = top.map(i => {\n  const tag = i.bounty_amount ? `$${i.bounty_amount}` : (i.stars ? `★${i.stars}` : i.repository);\n  const url = i.url || `https://github.com/${i.repository || ''}`;\n  return `• ${i.title} — ${tag}\\n  ${url}`;\n});\nconst message = items.length\n  ? `🌟 OSS Opportunities Today (${items.length})\\n\\n${lines.join('\\n\\n')}`\n  : null;\nreturn [{ json: { count: items.length, message, items: top } }];"
+      }
+    },
+    {
+      "id": "has_oss",
+      "name": "Has OSS?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1380,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $json.count }}",
+              "rightValue": 0,
+              "operator": { "type": "number", "operation": "gt" }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "notify",
+      "name": "Nostr OSS Digest",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1620,
+        220
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "command": "=printf %s '{{ $json.message.replace(/'/g, \"'\\\\''\") }}' | node /home/node/scripts/nostr_notifier.js send -"
+      }
+    },
+    {
+      "id": "log_run",
+      "name": "Log OSS Run",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1860,
+        300
+      ],
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify({ workflow_name: 'jHound — 04 Open Source Discovery', status: 'success', message: 'Found ' + ($('Build OSS Digest').first().json.count ?? 0) + ' opportunities', metadata: { count: $('Build OSS Digest').first().json.count ?? 0 } }).replace(/'/g, \"'\\\\''\") }}' | python3 /home/node/scripts/db.py log-execution"
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Mon-Fri 9AM WAT": {
+      "main": [
+        [
+          {
+            "node": "Find OSS Opportunities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find OSS Opportunities": {
+      "main": [
+        [
+          {
+            "node": "Parse Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Output": {
+      "main": [
+        [
+          {
+            "node": "Upsert into DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert into DB": {
+      "main": [
+        [
+          {
+            "node": "Collapse Upsert Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collapse Upsert Output": {
+      "main": [
+        [
+          {
+            "node": "Build OSS Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build OSS Digest": {
+      "main": [
+        [
+          {
+            "node": "Has OSS?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has OSS?": {
+      "main": [
+        [
+          {
+            "node": "Nostr OSS Digest",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log OSS Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nostr OSS Digest": {
+      "main": [
+        [
+          {
+            "node": "Log OSS Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

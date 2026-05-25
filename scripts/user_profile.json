@@ -1,0 +1,50 @@
+{
+  "name": "Mubarak Ibrahim",
+  "handle": "codeswot",
+  "email": "mubarak@codeswot.me",
+  "skills": [
+    "NestJS", "Flutter", "TypeScript", "JavaScript",
+    "PostgreSQL", "Redis", "Docker", "Bitcoin", "Lightning Network",
+    "Nostr", "React", "Next.js", "Python"
+  ],
+  "core_skills": ["NestJS", "Flutter", "Bitcoin", "Nostr", "TypeScript"],
+  "location_preference": "remote_only",
+  "timezone": "WAT (Africa/Lagos)",
+  "job_priority": {
+    "tier1_preferred": ["Bitcoin", "Nostr", "Lightning", "Open Source", "Decentralized", "BDK", "LDK", "Cashu", "Ark", "Fedimint"],
+    "tier2_acceptable": "Any remote tech role matching skills",
+    "rejected": ["onsite", "hybrid", "in-office", "on-site", "relocation required", "must be located", "must reside", "us only", "eu only", "uk only", "citizen only"]
+  },
+  "industries": [
+    "Bitcoin/Cryptocurrency",
+    "Nostr/Decentralized Social",
+    "Open Source",
+    "Privacy Tech",
+    "Fintech",
+    "Developer Tools",
+    "Decentralized Systems"
+  ],
+  "resume_path": "/home/node/resources/cv.docx",
+  "recommendations": [
+    "/home/node/resources/recomendation_flutter_plus.pdf",
+    "/home/node/resources/recommendation_flutter.pdf"
+  ],
+  "links": {
+    "portfolio": "https://codeswot.me",
+    "github": "https://github.com/codeswot",
+    "linkedin": "https://www.linkedin.com/in/codeswot"
+  },
+  "scoring": {
+    "min_score_to_apply": 50,
+    "tier1_threshold": 80,
+    "tier2_threshold": 50
+  },
+  "hunter_budget": {
+    "_comment": "Hunter free tier = 50 credits/month. Verification = 0.5 credits. With Friday-only application batches we size: 20/week (10 credits) and 80/month (40 credits, 10-credit buffer). Tier 1 only by default.",
+    "weekly_verifications": 20,
+    "monthly_verifications": 80,
+    "daily_verifications": 10,
+    "tier1_only": true,
+    "cache_days": 30
+  }
+}

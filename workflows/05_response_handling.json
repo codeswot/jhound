@@ -1,0 +1,520 @@
+{
+  "id": "jhound05response",
+  "name": "jHound — 05 Response Handling",
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Lagos"
+  },
+  "tags": [
+    {
+      "name": "jhound"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "resend_webhook",
+      "name": "Resend Inbound Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        200
+      ],
+      "parameters": {
+        "path": "={{ $env.RESEND_WEBHOOK_PATH }}",
+        "httpMethod": "POST",
+        "responseMode": "onReceived",
+        "responseData": "noData",
+        "options": {}
+      },
+      "webhookId": "resend-inbound"
+    },
+    {
+      "id": "verify_signature",
+      "name": "Verify Svix Signature",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        480,
+        200
+      ],
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify({ headers: $json.headers, body: $json.body, raw_body: $('Resend Inbound Webhook').first().body }).replace(/'/g, \"'\\\\''\") }}' | python3 /home/node/scripts/verify_svix.py"
+      }
+    },
+    {
+      "id": "signature_ok",
+      "name": "Signature OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ JSON.parse($json.stdout || '{}').ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "is_received",
+      "name": "Is email.received?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        960,
+        100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $('Resend Inbound Webhook').first().json.body.type }}",
+              "rightValue": "email.received",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "handle_inbound",
+      "name": "Process Inbound Email",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        100
+      ],
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify($('Resend Inbound Webhook').first().json.body).replace(/'/g, \"'\\\\''\") }}' | python3 /home/node/scripts/resend_inbound.py"
+      }
+    },
+    {
+      "id": "parse_result",
+      "name": "Parse Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        100
+      ],
+      "parameters": {
+        "jsCode": "const raw = ($input.first().json.stdout || '').trim();\nif (!raw || raw === 'null') return [];\nreturn [{ json: JSON.parse(raw) }];"
+      }
+    },
+    {
+      "id": "alert_response",
+      "name": "Nostr Response Alert",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1680,
+        100
+      ],
+      "parameters": {
+        "command": "=node /home/node/scripts/nostr_notifier.js response-alert '{{ JSON.stringify($json).replace(/'/g, \"'\\\\''\") }}'"
+      }
+    },
+    {
+      "id": "log_response",
+      "name": "Log Response Processed",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1900,
+        100
+      ],
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify({ workflow_name: 'jHound — 05 Response Handling', status: 'success', message: 'Processed reply from ' + ($json.from_email || 'unknown'), metadata: { classification: $json.classification, company: $json.company } }).replace(/'/g, \"'\\\\''\") }}' | python3 /home/node/scripts/db.py log-execution"
+      }
+    },
+    {
+      "id": "backfill_trigger",
+      "name": "Backfill Every 6h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        420
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 */6 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "backfill",
+      "name": "Backfill Recent Received",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        480,
+        420
+      ],
+      "parameters": {
+        "command": "python3 /home/node/scripts/resend_inbound.py --list --limit 30"
+      }
+    },
+    {
+      "id": "parse_backfill",
+      "name": "Parse Backfill",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        420
+      ],
+      "parameters": {
+        "jsCode": "const arr = JSON.parse($input.first().json.stdout || '[]');\nreturn arr.map(r => ({ json: r }));"
+      }
+    },
+    {
+      "id": "backfill_alert",
+      "name": "Nostr Backfill Alert",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        960,
+        420
+      ],
+      "parameters": {
+        "command": "=node /home/node/scripts/nostr_notifier.js response-alert '{{ JSON.stringify($json).replace(/'/g, \"'\\\\''\") }}'"
+      }
+    },
+    {
+      "id": "log_backfill",
+      "name": "Log Backfill Run",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1180,
+        420
+      ],
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify({ workflow_name: 'jHound — 05 Response Handling', status: 'success', message: 'Backfill processed', metadata: { classification: $json.classification } }).replace(/'/g, \"'\\\\''\") }}' | python3 /home/node/scripts/db.py log-execution"
+      }
+    },
+    {
+      "id": "followup_trigger",
+      "name": "Daily 10AM Follow-ups",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        640
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 10 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "query_followups",
+      "name": "Query Pending Follow-ups",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        480,
+        640
+      ],
+      "parameters": {
+        "command": "printf %s '{\"name\":\"awaiting_followup\"}' | python3 /home/node/scripts/db.py query"
+      }
+    },
+    {
+      "id": "parse_followups",
+      "name": "Parse Follow-ups",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        640
+      ],
+      "parameters": {
+        "jsCode": "const res = JSON.parse($input.first().json.stdout || '{}');\nreturn (res.rows || []).map(r => ({ json: r }));"
+      }
+    },
+    {
+      "id": "draft_followup",
+      "name": "Draft Follow-up",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        720,
+        640
+      ],
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify($json).replace(/'/g, \"'\\\\''\") }}' | python3 /home/node/scripts/ai/follow_up_drafter.py"
+      }
+    },
+    {
+      "id": "send_followup",
+      "name": "Send Follow-up",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        960,
+        640
+      ],
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify({ to: $('Parse Follow-ups').item.json.hiring_manager_email, subject: JSON.parse($json.stdout).subject, body: JSON.parse($json.stdout).body }).replace(/'/g, \"'\\\\''\") }}' | node /home/node/scripts/email_sender.js"
+      }
+    },
+    {
+      "id": "record_followup",
+      "name": "Record Follow-up",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        640
+      ],
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify({ job_id: $('Parse Follow-ups').item.json.id, to_email: $('Parse Follow-ups').item.json.hiring_manager_email, subject: JSON.parse($('Draft Follow-up').item.json.stdout).subject, body: JSON.parse($('Draft Follow-up').item.json.stdout).body, message_id: JSON.parse($json.stdout || '{}').message_id }).replace(/'/g, \"'\\\\''\") }}' | python3 /home/node/scripts/db.py record-followup"
+      }
+    },
+    {
+      "id": "log_followup",
+      "name": "Log Follow-up Run",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1440,
+        640
+      ],
+      "parameters": {
+        "command": "=printf %s '{{ JSON.stringify({ workflow_name: 'jHound — 05 Response Handling', status: 'success', message: 'Follow-up sent to ' + ($('Parse Follow-ups').item.json.company || 'unknown'), metadata: { company: $('Parse Follow-ups').item.json.company } }).replace(/'/g, \"'\\\\''\") }}' | python3 /home/node/scripts/db.py log-execution"
+      }
+    }
+  ],
+  "connections": {
+    "Resend Inbound Webhook": {
+      "main": [
+        [
+          {
+            "node": "Verify Svix Signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Svix Signature": {
+      "main": [
+        [
+          {
+            "node": "Signature OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Signature OK?": {
+      "main": [
+        [
+          {
+            "node": "Is email.received?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Is email.received?": {
+      "main": [
+        [
+          {
+            "node": "Process Inbound Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Process Inbound Email": {
+      "main": [
+        [
+          {
+            "node": "Parse Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Result": {
+      "main": [
+        [
+          {
+            "node": "Nostr Response Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nostr Response Alert": {
+      "main": [
+        [
+          {
+            "node": "Log Response Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Backfill Every 6h": {
+      "main": [
+        [
+          {
+            "node": "Backfill Recent Received",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Backfill Recent Received": {
+      "main": [
+        [
+          {
+            "node": "Parse Backfill",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Backfill": {
+      "main": [
+        [
+          {
+            "node": "Nostr Backfill Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nostr Backfill Alert": {
+      "main": [
+        [
+          {
+            "node": "Log Backfill Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily 10AM Follow-ups": {
+      "main": [
+        [
+          {
+            "node": "Query Pending Follow-ups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Pending Follow-ups": {
+      "main": [
+        [
+          {
+            "node": "Parse Follow-ups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Follow-ups": {
+      "main": [
+        [
+          {
+            "node": "Draft Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Draft Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Send Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Record Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Log Follow-up Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

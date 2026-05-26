@@ -27,8 +27,11 @@ async function sendMessage(text) {
     const pk = getPublicKey(sk);
     const targetPub = CONFIG.targetNpub ? nip19.decode(CONFIG.targetNpub).data : pk;
 
+    console.log(`[nostr-out] sending to ${targetPub.slice(0,12)}…`);
+
     const convKey = getConversationKey(sk, targetPub);
     const encrypted = nip44Encrypt(text, convKey);
+    console.log(`[nostr-out] encrypted (${encrypted.length} chars)`);
 
     const rumor = {
         kind: 14,
@@ -37,21 +40,32 @@ async function sendMessage(text) {
         content: encrypted,
     };
 
-    const giftWrap = await createGiftWrap(rumor, targetPub);
+    let giftWrap;
+    try {
+        giftWrap = await createGiftWrap(rumor, targetPub);
+        console.log(`[nostr-out] giftWrap created id=${giftWrap.id.slice(0,12)}… kind=${giftWrap.kind}`);
+    } catch (err) {
+        console.error(`[nostr-out] createGiftWrap failed: ${err.message}`);
+        throw err;
+    }
 
     const results = [];
     for (const url of RELAYS) {
         let relay = null;
         try {
             relay = await Relay.connect(url);
+            console.log(`[nostr-out] connected ${url}, publishing…`);
             await relay.publish(giftWrap);
+            console.log(`[nostr-out] published to ${url}`);
             results.push({ url, ok: true });
         } catch (err) {
+            console.error(`[nostr-out] ${url} error: ${err.message}`);
             results.push({ url, ok: false, error: err.message });
         } finally {
             try { relay && relay.close(); } catch {}
         }
     }
+    console.log(`[nostr-out] done: ${JSON.stringify(results)}`);
     return results;
 }
 
@@ -459,6 +473,18 @@ async function listenForDMs(webhookUrl) {
             }
             if (!text) return;
             console.log(`[nostr-inbound] DM kind=${event.kind}: ${text.slice(0, 200)}`);
+
+            if (text.toLowerCase().trim() === 'ping') {
+                console.log('[nostr-inbound] ping received, sending pong directly');
+                try {
+                    const results = await sendMessage('pong');
+                    console.log(`[nostr-inbound] pong results: ${JSON.stringify(results)}`);
+                } catch (err) {
+                    console.error(`[nostr-inbound] pong send error: ${err.message}\n${err.stack}`);
+                }
+                return;
+            }
+
             await postWebhook({ from: fromPub, text, id: event.id });
         } catch (err) {
             console.error(`[nostr-inbound] decrypt error (kind=${event.kind}): ${err.message}`);

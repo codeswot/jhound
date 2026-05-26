@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/animations/staggered_list.dart';
+
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
 
@@ -8,29 +10,34 @@ class MoreScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
 
+    final tiles = [
+      _Tile(
+        icon: Icons.settings,
+        title: 'Settings',
+        subtitle: 'Theme, preferences, account',
+        onTap: () { HapticFeedback.selectionClick(); },
+      ),
+      _Tile(
+        icon: Icons.dashboard,
+        title: 'Dashboard',
+        subtitle: 'jHound analytics and job stats',
+        onTap: () { HapticFeedback.selectionClick(); },
+      ),
+      _Tile(
+        icon: Icons.bolt,
+        title: 'Nostr',
+        subtitle: 'Nostr client and DMs',
+        onTap: () { HapticFeedback.selectionClick(); },
+      ),
+    ];
+
     return Scaffold(
       appBar: AppBar(title: const Text('More')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _Tile(
-            icon: Icons.settings,
-            title: 'Settings',
-            subtitle: 'Theme, preferences, account',
-            onTap: () { HapticFeedback.selectionClick(); },
-          ),
-          _Tile(
-            icon: Icons.dashboard,
-            title: 'Dashboard',
-            subtitle: 'jHound analytics and job stats',
-            onTap: () { HapticFeedback.selectionClick(); },
-          ),
-          _Tile(
-            icon: Icons.bolt,
-            title: 'Nostr',
-            subtitle: 'Nostr client and DMs',
-            onTap: () { HapticFeedback.selectionClick(); },
-          ),
+          for (var i = 0; i < tiles.length; i++)
+            StaggeredItem(index: i, child: tiles[i]),
           const SizedBox(height: 32),
           Text(
             'Coming soon',

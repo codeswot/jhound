@@ -32,9 +32,12 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
           IconButton(
             icon: const Icon(Icons.menu),
             tooltip: 'More',
-            onPressed: () => Navigator.of(context).push(
-              SlideUpRoute<void>(builder: (_) => const MoreScreen()),
-            ),
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              Navigator.of(context).push(
+                SlideUpRoute<void>(builder: (_) => const MoreScreen()),
+              );
+            },
           ),
         ],
       ),
@@ -138,7 +141,13 @@ class _CursorListState extends ConsumerState<_CursorList> {
               const SizedBox(height: 12),
               Text(_error!, style: TextStyle(color: scheme.error)),
               const SizedBox(height: 8),
-              FilledButton(onPressed: _refresh, child: const Text('Retry')),
+              FilledButton(
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  _refresh();
+                },
+                child: const Text('Retry'),
+              ),
             ],
           ),
         ),

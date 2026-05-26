@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/theme/app_theme.dart';
@@ -7,6 +8,13 @@ import 'presentation/screens/home_shell.dart';
 import 'presentation/screens/lock_screen.dart';
 import 'presentation/screens/pin_setup_screen.dart';
 import 'presentation/widgets/expressive_loader.dart';
+
+class _HapticObserver extends NavigatorObserver {
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    HapticFeedback.selectionClick();
+  }
+}
 
 class JHoundApp extends ConsumerWidget {
   const JHoundApp({super.key});
@@ -31,6 +39,7 @@ class JHoundApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
       home: body,
+      navigatorObservers: [_HapticObserver()],
     );
   }
 }

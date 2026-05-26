@@ -102,7 +102,12 @@ class _LockScreenState extends ConsumerState<LockScreen> with WidgetsBindingObse
               if (state.biometricEnabled) ...[
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
-                  onPressed: _busy ? null : () => ref.read(lockProvider.notifier).tryBiometric(),
+                  onPressed: _busy
+                      ? null
+                      : () {
+                          HapticFeedback.lightImpact();
+                          ref.read(lockProvider.notifier).tryBiometric();
+                        },
                   icon: const Icon(Icons.fingerprint),
                   label: const Text('Use biometrics'),
                 ),
@@ -113,6 +118,7 @@ class _LockScreenState extends ConsumerState<LockScreen> with WidgetsBindingObse
                   onPressed: _busy
                       ? null
                       : () async {
+                          HapticFeedback.mediumImpact();
                           await ref.read(lockProvider.notifier).reset();
                         },
                   child: const Text('Reset device (wipes token + PIN)'),

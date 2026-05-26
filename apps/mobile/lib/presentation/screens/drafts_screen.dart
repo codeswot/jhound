@@ -26,7 +26,10 @@ class DraftsScreen extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => coord.refresh(),
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              coord.refresh();
+            },
           ),
         ],
       ),

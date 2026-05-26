@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class ExpressiveRefreshIndicator extends StatefulWidget {
   const ExpressiveRefreshIndicator({
@@ -25,6 +26,7 @@ class _ExpressiveRefreshIndicatorState
   late AnimationController _morphCtrl;
   double _pullDistance = 0;
   bool _refreshing = false;
+  bool _pulledPastThreshold = false;
 
   static const _maxPull = 100.0;
   static const _triggerThreshold = 70.0;
@@ -53,9 +55,14 @@ class _ExpressiveRefreshIndicatorState
         ? (pos.minScrollExtent - pos.pixels)
         : 0.0;
     if (!mounted) return;
+    final pastThreshold = overscroll >= _triggerThreshold;
+    if (pastThreshold && !_pulledPastThreshold) {
+      HapticFeedback.mediumImpact();
+    }
     setState(() {
       _pullDistance = overscroll.clamp(0.0, _maxPull);
       _morphCtrl.value = (_pullDistance / _maxPull).clamp(0.0, 1.0);
+      _pulledPastThreshold = pastThreshold;
     });
   }
 
@@ -70,6 +77,7 @@ class _ExpressiveRefreshIndicatorState
         setState(() {
           _refreshing = false;
           _pullDistance = 0;
+          _pulledPastThreshold = false;
         });
         _morphCtrl.stop();
         _morphCtrl.value = 0;
@@ -81,10 +89,10 @@ class _ExpressiveRefreshIndicatorState
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
 
-    return NotificationListener<ScrollUpdateNotification>(
+    return NotificationListener<ScrollNotification>(
       onNotification: (n) {
-        if (n.dragDetails != null && !_refreshing) {
-          _onScroll();
+        if (n is ScrollEndNotification && _pullDistance >= _triggerThreshold && !_refreshing) {
+          _triggerRefresh();
         }
         return false;
       },
@@ -101,28 +109,17 @@ class _ExpressiveRefreshIndicatorState
                 top: _refreshing ? 16 : (_pullDistance - 40).clamp(0.0, 80.0),
                 left: 0,
                 right: 0,
-                child: NotificationListener<ScrollUpdateNotification>(
-                  onNotification: (n) {
-                    if (n.dragDetails == null &&
-                        _pullDistance >= _triggerThreshold &&
-                        !_refreshing) {
-                      WidgetsBinding.instance
-                          .addPostFrameCallback((_) => _triggerRefresh());
-                    }
-                    return false;
-                  },
-                  child: Center(
-                    child: AnimatedBuilder(
-                      animation: _morphCtrl,
-                      builder: (_, __) {
-                        return _MorphShape(
-                          t: _morphCtrl.value,
-                          pullProgress: (_pullDistance / _maxPull).clamp(0.0, 1.0),
-                          active: _refreshing,
-                          color: scheme.primary,
-                        );
-                      },
-                    ),
+                child: Center(
+                  child: AnimatedBuilder(
+                    animation: _morphCtrl,
+                    builder: (_, __) {
+                      return _MorphShape(
+                        t: _morphCtrl.value,
+                        pullProgress: (_pullDistance / _maxPull).clamp(0.0, 1.0),
+                        active: _refreshing,
+                        color: scheme.primary,
+                      );
+                    },
                   ),
                 ),
               ),
@@ -150,7 +147,9 @@ class _MorphShape extends StatelessWidget {
   Widget build(BuildContext context) {
     final baseSize = 24.0 + pullProgress * 16;
     final size = active ? baseSize + 6 * sin(t * 2 * pi) : baseSize;
-    final cutoutRadius = active ? size * 0.28 : (pullProgress > 0.55 ? (pullProgress - 0.55) * size * 0.5 : 0.0);
+    final cutoutRadius = active
+        ? size * 0.28
+        : (pullProgress > 0.55 ? (pullProgress - 0.55) * size * 0.5 : 0.0);
 
     return SizedBox(
       width: size,
@@ -164,11 +163,7 @@ class _MorphShape extends StatelessWidget {
         ),
         child: cutoutRadius > 0
             ? Center(
-                child: Icon(
-                  Icons.refresh,
-                  size: cutoutRadius * 1.4,
-                  color: color,
-                ),
+                child: Icon(Icons.refresh, size: cutoutRadius * 1.4, color: color),
               )
             : null,
       ),
@@ -201,9 +196,11 @@ class _MorphPainter extends CustomPainter {
 
     if (cutoutRadius > 0) {
       final center = Offset(size.width / 2, size.height / 2);
-      final cutoutPath = Path()..addOval(Rect.fromCircle(center: center, radius: cutoutRadius));
+      final cutoutPath = Path()
+        ..addOval(Rect.fromCircle(center: center, radius: cutoutRadius));
       final shapePath = Path()..addRRect(rrect);
-      final result = Path.combine(PathOperation.difference, shapePath, cutoutPath);
+      final result =
+          Path.combine(PathOperation.difference, shapePath, cutoutPath);
       canvas.drawPath(result, paint);
     } else {
       canvas.drawRRect(rrect, paint);
@@ -218,8 +215,8 @@ class _MorphPainter extends CustomPainter {
 
     final phase = (t * 5) % 1;
     if (phase < 0.2) {
-      final r = ml(4, 16, phase / 0.2);
-      return RRect.fromRectAndRadius(rect, Radius.circular(r));
+      return RRect.fromRectAndRadius(
+          rect, Radius.circular(ml(4, 16, phase / 0.2)));
     }
     if (phase < 0.4) {
       final p = (phase - 0.2) / 0.2;
@@ -252,13 +249,14 @@ class _MorphPainter extends CustomPainter {
       );
     }
     final p = (phase - 0.8) / 0.2;
-    final r = ml(18, 4, p);
-    return RRect.fromRectAndRadius(rect, Radius.circular(r));
+    return RRect.fromRectAndRadius(rect, Radius.circular(ml(18, 4, p)));
   }
 
   double ml(double a, double b, double t) => a + (b - a) * t;
 
   @override
   bool shouldRepaint(covariant _MorphPainter oldDelegate) =>
-      t != oldDelegate.t || active != oldDelegate.active || cutoutRadius != oldDelegate.cutoutRadius;
+      t != oldDelegate.t ||
+      active != oldDelegate.active ||
+      cutoutRadius != oldDelegate.cutoutRadius;
 }

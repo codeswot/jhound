@@ -104,6 +104,7 @@ class _DraftComposeScreenState extends ConsumerState<DraftComposeScreen> {
       .toList();
 
   Future<void> _pickAttachments() async {
+    HapticFeedback.selectionClick();
     final result = await FilePicker.platform
         .pickFiles(allowMultiple: true, withData: true);
     if (result == null) return;
@@ -182,6 +183,7 @@ class _DraftComposeScreenState extends ConsumerState<DraftComposeScreen> {
   }
 
   Future<void> _saveDraft() async {
+    HapticFeedback.lightImpact();
     setState(() => _busy = true);
     final coord = ref.read(draftsCoordinatorProvider);
 

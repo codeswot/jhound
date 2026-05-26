@@ -38,6 +38,7 @@ class _LockScreenState extends ConsumerState<LockScreen> with WidgetsBindingObse
   }
 
   Future<void> _submit() async {
+    HapticFeedback.lightImpact();
     setState(() {
       _busy = true;
       _error = null;

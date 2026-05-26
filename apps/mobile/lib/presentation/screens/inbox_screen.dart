@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -73,7 +74,8 @@ class _CursorListState extends ConsumerState<_CursorList> {
   }
 
   void _onScroll() {
-    if (_scrollCtrl.position.pixels >= _scrollCtrl.position.maxScrollExtent - 200) {
+    if (_scrollCtrl.position.pixels >=
+        _scrollCtrl.position.maxScrollExtent - 200) {
       if (!_loading && _hasMore) _fetch();
     }
   }
@@ -102,7 +104,7 @@ class _CursorListState extends ConsumerState<_CursorList> {
       if (!mounted) return;
       debugPrint('[jhound] inbox fetch failed — $e');
       setState(() {
-        _error = 'Could not load emails. Pull to retry.';
+        _error = 'Could not load emails. Tap to retry.';
         _loading = false;
       });
     }
@@ -153,7 +155,9 @@ class _CursorListState extends ConsumerState<_CursorList> {
               Icon(Icons.inbox, size: 64, color: scheme.outline),
               const SizedBox(height: 16),
               Text(
-                widget.direction == EmailDirection.inbound ? 'Inbox empty' : 'Nothing sent yet',
+                widget.direction == EmailDirection.inbound
+                    ? 'Inbox empty'
+                    : 'Nothing sent yet',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
             ],
@@ -203,11 +207,15 @@ class _EmailTile extends StatelessWidget {
       child: Card(
         child: InkWell(
           borderRadius: BorderRadius.circular(28),
-          onTap: () => Navigator.of(context).push(
-            SlideUpRoute<void>(
-              builder: (_) => EmailDetailScreen(id: email.id, direction: email.direction),
-            ),
-          ),
+          onTap: () {
+            HapticFeedback.selectionClick();
+            Navigator.of(context).push(
+              SlideUpRoute<void>(
+                builder: (_) =>
+                    EmailDetailScreen(id: email.id, direction: email.direction),
+              ),
+            );
+          },
           child: Padding(
             padding: const EdgeInsets.all(18),
             child: Row(
@@ -252,7 +260,9 @@ class _EmailTile extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        DateFormat.yMMMd().add_jm().format(email.createdAt.toLocal()),
+                        DateFormat.yMMMd()
+                            .add_jm()
+                            .format(email.createdAt.toLocal()),
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
@@ -263,9 +273,11 @@ class _EmailTile extends StatelessWidget {
                   children: [
                     if (email.lastEvent != null) ...[
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
-                          color: _eventColor(email.lastEvent!, scheme).withValues(alpha: 0.2),
+                          color: _eventColor(email.lastEvent!, scheme)
+                              .withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(

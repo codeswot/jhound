@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -81,11 +82,14 @@ class _DraftTile extends ConsumerWidget {
       child: Card(
         child: InkWell(
           borderRadius: BorderRadius.circular(28),
-          onTap: () => Navigator.of(context).push(
-            SlideUpRoute<void>(
-              builder: (_) => DraftComposeScreen(localId: draft.localId),
-            ),
-          ),
+          onTap: () {
+            HapticFeedback.selectionClick();
+            Navigator.of(context).push(
+              SlideUpRoute<void>(
+                builder: (_) => DraftComposeScreen(localId: draft.localId),
+              ),
+            );
+          },
           child: Padding(
             padding: const EdgeInsets.all(18),
             child: Row(
@@ -152,6 +156,7 @@ class _DraftTile extends ConsumerWidget {
   }
 
   Future<void> _send(BuildContext context, WidgetRef ref) async {
+    HapticFeedback.heavyImpact();
     try {
       final result = await ref.read(draftsCoordinatorProvider).send(draft.localId);
       toastSuccess(context, 'Email sent');

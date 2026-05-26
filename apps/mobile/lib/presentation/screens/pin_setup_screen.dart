@@ -26,6 +26,7 @@ class _PinSetupScreenState extends ConsumerState<PinSetupScreen> {
   }
 
   Future<void> _save() async {
+    HapticFeedback.mediumImpact();
     setState(() {
       _busy = true;
       _error = null;

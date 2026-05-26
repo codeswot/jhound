@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
@@ -16,19 +17,19 @@ class MoreScreen extends StatelessWidget {
             icon: Icons.settings,
             title: 'Settings',
             subtitle: 'Theme, preferences, account',
-            onTap: () {},
+            onTap: () { HapticFeedback.selectionClick(); },
           ),
           _Tile(
             icon: Icons.dashboard,
             title: 'Dashboard',
             subtitle: 'jHound analytics and job stats',
-            onTap: () {},
+            onTap: () { HapticFeedback.selectionClick(); },
           ),
           _Tile(
             icon: Icons.bolt,
             title: 'Nostr',
             subtitle: 'Nostr client and DMs',
-            onTap: () {},
+            onTap: () { HapticFeedback.selectionClick(); },
           ),
           const SizedBox(height: 32),
           Text(

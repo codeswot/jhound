@@ -37,6 +37,7 @@ class EmailDetailScreen extends ConsumerWidget {
               icon: const Icon(Icons.copy),
               tooltip: 'Copy body text',
               onPressed: () {
+                HapticFeedback.selectionClick();
                 Clipboard.setData(ClipboardData(text: body.value!.text ?? body.value!.html ?? ''));
                 toastSuccess(context, 'Body copied to clipboard');
               },
@@ -75,6 +76,7 @@ class EmailDetailScreen extends ConsumerWidget {
 
   void _reply(BuildContext context, EmailBody? email) {
     if (email == null) return;
+    HapticFeedback.lightImpact();
     Navigator.of(context).push(
       SlideUpRoute<void>(
         builder: (_) => DraftComposeScreen(
@@ -282,6 +284,7 @@ class _AttachmentTile extends ConsumerWidget {
   }
 
   Future<void> _download(BuildContext context, WidgetRef ref) async {
+    HapticFeedback.lightImpact();
     try {
       final repo = ref.read(emailsRepoProvider);
       final bytes = await repo.downloadAttachment(emailId, attachment.id, direction);

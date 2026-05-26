@@ -1,5 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import {
   OnGatewayConnection,
   OnGatewayDisconnect,
@@ -24,22 +25,27 @@ export class SyncGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly expectedToken: string;
   private readonly clients = new Map<string, Socket>();
 
-  constructor(cfg: ConfigService) {
+  constructor(
+    cfg: ConfigService,
+    private readonly jwt: JwtService,
+  ) {
     this.expectedToken = cfg.get<string>('API_TOKEN') ?? '';
   }
 
-  handleConnection(client: Socket) {
-    if (!this.expectedToken) {
-      this.logger.error('API_TOKEN missing — rejecting WS client');
-      client.disconnect(true);
-      return;
-    }
+  async handleConnection(client: Socket) {
     const provided =
       (client.handshake.auth?.token as string | undefined) ??
       this.fromBearer(client.handshake.headers['authorization']) ??
       (client.handshake.query.token as string | undefined);
 
-    if (!provided || !safeEqual(provided, this.expectedToken)) {
+    if (!provided) {
+      this.logger.warn(`WS auth missing for ${client.id}`);
+      client.disconnect(true);
+      return;
+    }
+
+    const ok = await this.tokenAccepted(provided);
+    if (!ok) {
       this.logger.warn(`WS auth failed for ${client.id}`);
       client.disconnect(true);
       return;
@@ -69,6 +75,19 @@ export class SyncGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private fromBearer(header: string | string[] | undefined): string | undefined {
     if (!header || Array.isArray(header)) return undefined;
     return header.startsWith('Bearer ') ? header.slice(7) : undefined;
+  }
+
+  private async tokenAccepted(provided: string): Promise<boolean> {
+    if (provided.split('.').length === 3) {
+      try {
+        await this.jwt.verifyAsync(provided);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    if (!this.expectedToken) return false;
+    return safeEqual(provided, this.expectedToken);
   }
 }
 

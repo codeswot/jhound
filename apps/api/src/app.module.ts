@@ -12,6 +12,7 @@ import { EmailsModule } from './emails/emails.module';
 import { DraftsModule } from './drafts/drafts.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { SyncModule } from './sync/sync.module';
+import { OssModule } from './oss/oss.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { SyncModule } from './sync/sync.module';
     EmailsModule,
     DraftsModule,
     SyncModule,
+    OssModule,
     WebhooksModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: BearerGuard }],

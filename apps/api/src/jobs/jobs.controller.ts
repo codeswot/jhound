@@ -15,4 +15,9 @@ export class JobsController {
   findOne(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.jobs.findOne(id);
   }
+
+  @Get(':id/messages')
+  messages(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.jobs.messages(id);
+  }
 }

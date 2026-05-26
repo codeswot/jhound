@@ -156,6 +156,9 @@ services:
       - RESEND_WEBHOOK_SECRET=${RESEND_WEBHOOK_SECRET:-}
       - RESEND_WEBHOOK_INSECURE=${RESEND_WEBHOOK_INSECURE:-false}
       - RESEND_FROM=${RESEND_FROM:-${USER_EMAIL}}
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     depends_on:
       postgres:
         condition: service_healthy

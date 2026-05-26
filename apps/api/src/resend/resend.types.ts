@@ -24,6 +24,13 @@ export interface ResendReceivedAttachment {
   size: number;
 }
 
+export interface ResendAttachment {
+  id: string;
+  filename: string;
+  content_type: string;
+  size: number;
+}
+
 export interface ResendReceivedSummary {
   id: string;
   to: string[];
@@ -47,7 +54,13 @@ export interface ResendEmailBody {
   created_at: string;
   last_event?: string | null;
   headers?: Record<string, string> | null;
-  tags?: Record<string, string> | null;
+  tags?: ResendTag[] | Record<string, string> | null;
+  attachments?: ResendReceivedAttachment[] | null;
+}
+
+export interface ResendTag {
+  name: string;
+  value: string;
 }
 
 export interface ResendSendInput {

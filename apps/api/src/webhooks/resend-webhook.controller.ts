@@ -9,9 +9,12 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
 import { Webhook } from 'svix';
+import { QueryFailedError, Repository } from 'typeorm';
 import { Request } from 'express';
 import { Public } from '../auth/public.decorator';
+import { WebhookEvent } from '../database/entities/webhook-event.entity';
 import { SyncGateway } from '../sync/sync.gateway';
 import { WsEvent } from '../sync/sync.events';
 
@@ -38,6 +41,8 @@ export class ResendWebhookController {
   constructor(
     cfg: ConfigService,
     private readonly gateway: SyncGateway,
+    @InjectRepository(WebhookEvent)
+    private readonly events: Repository<WebhookEvent>,
   ) {
     const secret = cfg.get<string>('RESEND_WEBHOOK_SECRET');
     this.verifier = secret ? new Webhook(secret) : null;
@@ -52,15 +57,17 @@ export class ResendWebhookController {
   @Public()
   @Post()
   @HttpCode(200)
-  handle(@Req() req: RawBodyRequest<Request>) {
+  async handle(@Req() req: RawBodyRequest<Request>) {
     const raw = req.rawBody;
     if (!raw) throw new BadRequestException('missing raw body');
 
     let event: { type?: string; data?: { email_id?: string } & Record<string, unknown> };
+    const svixId = req.headers['svix-id'] as string | undefined;
 
     if (this.verifier) {
+      if (!svixId) throw new BadRequestException('missing svix-id');
       const headers = {
-        'svix-id': req.headers['svix-id'] as string,
+        'svix-id': svixId,
         'svix-timestamp': req.headers['svix-timestamp'] as string,
         'svix-signature': req.headers['svix-signature'] as string,
       };
@@ -80,7 +87,24 @@ export class ResendWebhookController {
       throw new UnauthorizedException('webhook secret not configured');
     }
 
+    const externalId = svixId ?? `nosvix:${Buffer.from(raw).subarray(0, 32).toString('hex')}`;
     const type = (event.type ?? 'unknown') as WsEvent['type'];
+
+    try {
+      await this.events.insert({
+        provider: 'resend',
+        externalId,
+        eventType: type,
+        payload: event.data,
+      });
+    } catch (err) {
+      if (err instanceof QueryFailedError && (err.driverError as { code?: string }).code === '23505') {
+        this.logger.log(`Duplicate webhook ${externalId} ignored`);
+        return { ok: true, duplicate: true };
+      }
+      throw err;
+    }
+
     if (!FORWARDED_EVENTS.has(type)) {
       this.logger.log(`Ignoring unsupported event: ${type}`);
       return { ok: true, ignored: true };

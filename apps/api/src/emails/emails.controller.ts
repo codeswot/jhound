@@ -26,9 +26,14 @@ export class EmailsController {
     return this.svc.getInbox(id);
   }
 
+  @Get('inbox/:id/attachments')
+  listInboxAttachments(@Param('id') id: string) {
+    return this.svc.listAttachments(id);
+  }
+
   @Get('inbox/:id/attachments/:attId')
   @Header('Cache-Control', 'private, max-age=300')
-  async getAttachment(
+  async getInboxAttachment(
     @Param('id') id: string,
     @Param('attId') attId: string,
     @Res() res: Response,
@@ -46,6 +51,23 @@ export class EmailsController {
   @Get('sent/:id')
   getSent(@Param('id') id: string) {
     return this.svc.getSent(id);
+  }
+
+  @Get('sent/:id/attachments')
+  listSentAttachments(@Param('id') id: string) {
+    return this.svc.listAttachments(id);
+  }
+
+  @Get('sent/:id/attachments/:attId')
+  @Header('Cache-Control', 'private, max-age=300')
+  async getSentAttachment(
+    @Param('id') id: string,
+    @Param('attId') attId: string,
+    @Res() res: Response,
+  ) {
+    const buf = await this.svc.getAttachment(id, attId);
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.send(Buffer.from(buf));
   }
 
   @Post('send')

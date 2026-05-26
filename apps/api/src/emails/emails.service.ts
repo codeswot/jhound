@@ -27,8 +27,12 @@ export class EmailsService {
     return this.resend.getReceived(id);
   }
 
+  listAttachments(emailId: string) {
+    return this.resend.listAttachments(emailId);
+  }
+
   getAttachment(emailId: string, attachmentId: string) {
-    return this.resend.getReceivedAttachment(emailId, attachmentId);
+    return this.resend.getAttachment(emailId, attachmentId);
   }
 
   listSent(limit?: number, after?: string, before?: string) {

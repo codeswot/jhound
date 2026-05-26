@@ -6,6 +6,7 @@ import { FollowUp } from './entities/follow-up.entity';
 import { RejectedJob } from './entities/rejected-job.entity';
 import { OpensourceOpportunity } from './entities/opensource-opportunity.entity';
 import { Draft } from './entities/draft.entity';
+import { WebhookEvent } from './entities/webhook-event.entity';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { Draft } from './entities/draft.entity';
           RejectedJob,
           OpensourceOpportunity,
           Draft,
+          WebhookEvent,
         ],
         synchronize: false,
         migrationsRun: false,

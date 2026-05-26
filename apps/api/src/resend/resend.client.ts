@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import {
   ListQuery,
+  ResendAttachment,
   ResendEmailBody,
   ResendListPage,
   ResendReceivedSummary,
@@ -103,10 +104,17 @@ export class ResendClient {
     );
   }
 
-  getReceivedAttachment(emailId: string, attachmentId: string) {
+  listAttachments(emailId: string) {
+    return this.request<ResendListPage<ResendAttachment>>(
+      'GET',
+      `/emails/${encodeURIComponent(emailId)}/attachments`,
+    );
+  }
+
+  getAttachment(emailId: string, attachmentId: string) {
     return this.request<ArrayBuffer>(
       'GET',
-      `/emails/receiving/${encodeURIComponent(emailId)}/attachments/${encodeURIComponent(attachmentId)}`,
+      `/emails/${encodeURIComponent(emailId)}/attachments/${encodeURIComponent(attachmentId)}`,
       { raw: true },
     );
   }

@@ -137,7 +137,7 @@ services:
     container_name: jHound-api
     restart: unless-stopped
     ports:
-      - "${API_HOST_PORT:-3000}:3000"
+      - "${API_HOST_PORT:-3100}:3000"
     environment:
       - NODE_ENV=production
       - API_PORT=3000

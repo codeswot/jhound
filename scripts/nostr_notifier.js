@@ -17,9 +17,8 @@ function _checkConfig() {
 }
 
 async function sendMessage(text) {
-    const { Relay, finalizeEvent, getPublicKey, nip19, generateSecretKey } = require('nostr-tools');
+    const { Relay, finalizeEvent, getPublicKey, nip19 } = require('nostr-tools');
     const { getConversationKey, encrypt: nip44Encrypt } = require('nostr-tools/nip44');
-    const { createGiftWrap } = require('nostr-tools/nip59');
 
     _checkConfig();
 
@@ -30,21 +29,19 @@ async function sendMessage(text) {
     const convKey = getConversationKey(sk, targetPub);
     const encrypted = nip44Encrypt(text, convKey);
 
-    const rumor = {
+    const event = finalizeEvent({
         kind: 14,
         created_at: Math.floor(Date.now() / 1000),
         tags: [['p', targetPub]],
         content: encrypted,
-    };
-
-    const giftWrap = await createGiftWrap(rumor, targetPub, undefined, finalizeEvent, generateSecretKey);
+    }, sk);
 
     const results = [];
     for (const url of RELAYS) {
         let relay = null;
         try {
             relay = await Relay.connect(url);
-            await relay.publish(giftWrap);
+            await relay.publish(event);
             results.push({ url, ok: true });
         } catch (err) {
             results.push({ url, ok: false, error: err.message });
@@ -392,7 +389,7 @@ if (require.main === module) {
 }
 
 async function listenForDMs(webhookUrl) {
-    const { Relay, getPublicKey, nip19 } = require('nostr-tools');
+    const { Relay, getPublicKey, nip19, nip04 } = require('nostr-tools');
     const { getConversationKey, decrypt: nip44Decrypt } = require('nostr-tools/nip44');
 
     _checkConfig();
@@ -441,12 +438,19 @@ async function listenForDMs(webhookUrl) {
             for (const id of keep) seen.add(id);
         }
         try {
-            const decrypted = nip44Decrypt(event.content, convKey);
-            const text = decrypted.trim();
-            console.log(`[nostr-inbound] DM: ${text.slice(0, 200)}`);
+            let text;
+            if (event.kind === 14) {
+                text = nip44Decrypt(event.content, convKey).trim();
+            } else if (event.kind === 4) {
+                text = (await nip04.decrypt(sk, event.pubkey, event.content)).trim();
+            } else {
+                return;
+            }
+            if (!text) return;
+            console.log(`[nostr-inbound] DM kind=${event.kind}: ${text.slice(0, 200)}`);
             await postWebhook({ from: event.pubkey, text, id: event.id });
         } catch (err) {
-            console.error(`[nostr-inbound] decrypt error: ${err.message}`);
+            console.error(`[nostr-inbound] decrypt error (kind=${event.kind}): ${err.message}`);
         }
     }
 
@@ -459,7 +463,7 @@ async function listenForDMs(webhookUrl) {
                 backoff = 1000;
                 await new Promise((resolve) => {
                     const sub = relay.subscribe(
-                        [{ kinds: [14, 1059], '#p': [ownPk], authors: [senderPub], since: sinceFloor - LOOKBACK_SEC }],
+                        [{ kinds: [4, 14], '#p': [ownPk], authors: [senderPub], since: sinceFloor - LOOKBACK_SEC }],
                         {
                             onevent: handleEvent,
                             oneose: () => console.log(`[nostr-inbound] ${url} eose`),

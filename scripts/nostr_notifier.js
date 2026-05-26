@@ -17,7 +17,7 @@ function _checkConfig() {
 }
 
 async function sendMessage(text) {
-    const { Relay, finalizeEvent, getPublicKey, nip19, generateSecretKey } = require('nostr-tools');
+    const { Relay, getPublicKey, nip19 } = require('nostr-tools');
     const { getConversationKey, encrypt: nip44Encrypt } = require('nostr-tools/nip44');
     const { createGiftWrap } = require('nostr-tools/nip59');
 
@@ -37,7 +37,7 @@ async function sendMessage(text) {
         content: encrypted,
     };
 
-    const giftWrap = await createGiftWrap(rumor, targetPub, undefined, finalizeEvent, generateSecretKey);
+    const giftWrap = await createGiftWrap(rumor, targetPub);
 
     const results = [];
     for (const url of RELAYS) {

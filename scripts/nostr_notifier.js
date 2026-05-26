@@ -17,7 +17,9 @@ function _checkConfig() {
 }
 
 async function sendMessage(text) {
-    const { Relay, finalizeEvent, getPublicKey, nip19, nip04 } = require('nostr-tools');
+    const { Relay, finalizeEvent, getPublicKey, nip19, generateSecretKey } = require('nostr-tools');
+    const { getConversationKey, encrypt: nip44Encrypt } = require('nostr-tools/nip44');
+    const { createGiftWrap } = require('nostr-tools/nip59');
 
     _checkConfig();
 
@@ -25,21 +27,24 @@ async function sendMessage(text) {
     const pk = getPublicKey(sk);
     const targetPub = CONFIG.targetNpub ? nip19.decode(CONFIG.targetNpub).data : pk;
 
-    const encrypted = await nip04.encrypt(sk, targetPub, text);
+    const convKey = getConversationKey(sk, targetPub);
+    const encrypted = nip44Encrypt(text, convKey);
 
-    const event = finalizeEvent({
-        kind: 4,
+    const rumor = {
+        kind: 14,
         created_at: Math.floor(Date.now() / 1000),
         tags: [['p', targetPub]],
         content: encrypted,
-    }, sk);
+    };
+
+    const giftWrap = await createGiftWrap(rumor, targetPub, undefined, finalizeEvent, generateSecretKey);
 
     const results = [];
     for (const url of RELAYS) {
         let relay = null;
         try {
             relay = await Relay.connect(url);
-            await relay.publish(event);
+            await relay.publish(giftWrap);
             results.push({ url, ok: true });
         } catch (err) {
             results.push({ url, ok: false, error: err.message });
@@ -387,7 +392,8 @@ if (require.main === module) {
 }
 
 async function listenForDMs(webhookUrl) {
-    const { Relay, getPublicKey, nip19, nip04 } = require('nostr-tools');
+    const { Relay, getPublicKey, nip19 } = require('nostr-tools');
+    const { getConversationKey, decrypt: nip44Decrypt } = require('nostr-tools/nip44');
 
     _checkConfig();
     const sk = nip19.decode(CONFIG.nsec).data;
@@ -396,6 +402,7 @@ async function listenForDMs(webhookUrl) {
     const baseUrl = webhookUrl ? webhookUrl.replace(/\/webhook\/.*$/, '') : (process.env.N8N_INTERNAL_URL || 'http://localhost:5678');
     const hookUrl = webhookUrl && webhookUrl.includes('/webhook/') ? webhookUrl : `${baseUrl}/webhook/jhound-nostr-inbound`;
 
+    const convKey = getConversationKey(sk, senderPub);
     const LOOKBACK_SEC = 600;
     const seen = new Set();
     let sinceFloor = Math.floor(Date.now() / 1000) - LOOKBACK_SEC;
@@ -434,7 +441,7 @@ async function listenForDMs(webhookUrl) {
             for (const id of keep) seen.add(id);
         }
         try {
-            const decrypted = await nip04.decrypt(sk, event.pubkey, event.content);
+            const decrypted = nip44Decrypt(event.content, convKey);
             const text = decrypted.trim();
             console.log(`[nostr-inbound] DM: ${text.slice(0, 200)}`);
             await postWebhook({ from: event.pubkey, text, id: event.id });
@@ -452,7 +459,7 @@ async function listenForDMs(webhookUrl) {
                 backoff = 1000;
                 await new Promise((resolve) => {
                     const sub = relay.subscribe(
-                        [{ kinds: [4], '#p': [ownPk], authors: [senderPub], since: sinceFloor - LOOKBACK_SEC }],
+                        [{ kinds: [14, 1059], '#p': [ownPk], authors: [senderPub], since: sinceFloor - LOOKBACK_SEC }],
                         {
                             onevent: handleEvent,
                             oneose: () => console.log(`[nostr-inbound] ${url} eose`),

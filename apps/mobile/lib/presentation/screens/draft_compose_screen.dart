@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/db/app_db.dart';
@@ -64,8 +65,9 @@ class _DraftComposeScreenState extends ConsumerState<DraftComposeScreen> {
       _load(widget.localId!);
     } else {
       if (widget.prefillTo != null) _toCtrl.text = widget.prefillTo!.join(', ');
-      if (widget.prefillSubject != null)
-        _subjectCtrl.text = widget.prefillSubject!;
+      if (widget.prefillSubject != null) {
+        _subjectCtrl.text = widget.prefillSubject ?? '';
+      }
     }
   }
 
@@ -128,6 +130,7 @@ class _DraftComposeScreenState extends ConsumerState<DraftComposeScreen> {
   }
 
   Future<void> _send() async {
+    HapticFeedback.mediumImpact();
     setState(() => _busy = true);
     final navigator = Navigator.of(context);
     final emailsRepo = ref.read(emailsRepoProvider);
@@ -169,9 +172,10 @@ class _DraftComposeScreenState extends ConsumerState<DraftComposeScreen> {
       if (mounted) toastSuccess(context, 'Email sent');
       if (mounted) navigator.pop();
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         toastError(context,
             'Could not send email. Check connection and try again.', e);
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/animations/animated_route.dart';
 import '../providers/sync_provider.dart';
 import '../../data/models/email.dart';
 import 'draft_compose_screen.dart';
@@ -31,15 +33,21 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => const DraftComposeScreen()),
-        ),
+        onPressed: () {
+          HapticFeedback.mediumImpact();
+          Navigator.of(context).push(
+            SlideUpRoute<void>(builder: (_) => const DraftComposeScreen()),
+          );
+        },
         icon: const Icon(Icons.edit),
         label: const Text('Compose'),
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
+        onDestinationSelected: (i) {
+          HapticFeedback.lightImpact();
+          setState(() => _index = i);
+        },
         destinations: const [
           NavigationDestination(icon: Icon(Icons.inbox), label: 'Inbox'),
           NavigationDestination(icon: Icon(Icons.send), label: 'Sent'),

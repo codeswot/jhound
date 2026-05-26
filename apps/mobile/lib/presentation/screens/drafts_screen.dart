@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/animations/animated_route.dart';
 import '../../core/utils/toast.dart';
 import '../../data/db/app_db.dart';
 import '../providers/drafts_provider.dart';
@@ -77,7 +78,7 @@ class _DraftTile extends ConsumerWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(28),
           onTap: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
+            SlideUpRoute<void>(
               builder: (_) => DraftComposeScreen(localId: draft.localId),
             ),
           ),

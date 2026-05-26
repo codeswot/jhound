@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/utils/toast.dart';
+import '../../core/animations/animated_route.dart';
 import '../../data/models/email.dart';
 import '../providers/emails_provider.dart';
 import '../providers/api_provider.dart';
@@ -75,7 +76,7 @@ class EmailDetailScreen extends ConsumerWidget {
   void _reply(BuildContext context, EmailBody? email) {
     if (email == null) return;
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
+      SlideUpRoute<void>(
         builder: (_) => DraftComposeScreen(
           replyToInboundId: email.id,
           prefillTo: [email.from],
@@ -120,14 +121,17 @@ class _Body extends ConsumerWidget {
                 const SizedBox(height: 16),
                 Row(
                   children: [
-                    CircleAvatar(
-                      radius: 20,
-                      backgroundColor: scheme.primaryContainer,
-                      child: Text(
-                        (email.from.isNotEmpty ? email.from[0] : '?').toUpperCase(),
-                        style: TextStyle(
-                          color: scheme.onPrimaryContainer,
-                          fontWeight: FontWeight.w700,
+                    Hero(
+                      tag: 'email-avatar-${email.id}',
+                      child: CircleAvatar(
+                        radius: 20,
+                        backgroundColor: scheme.primaryContainer,
+                        child: Text(
+                          (email.from.isNotEmpty ? email.from[0] : '?').toUpperCase(),
+                          style: TextStyle(
+                            color: scheme.onPrimaryContainer,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ),

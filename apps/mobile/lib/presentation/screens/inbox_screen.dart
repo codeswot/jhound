@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/animations/animated_route.dart';
 import '../../data/models/email.dart';
 import '../providers/api_provider.dart';
 import '../widgets/expressive_loader.dart';
-import 'draft_compose_screen.dart';
 import 'email_detail_screen.dart';
+import 'more_screen.dart';
 
 class InboxScreen extends ConsumerStatefulWidget {
   const InboxScreen({super.key, this.direction});
@@ -26,15 +27,11 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
         title: Text(dir == EmailDirection.inbound ? 'Inbox' : 'Sent'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.edit),
-            tooltip: 'Compose',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const DraftComposeScreen(),
-                ),
-              );
-            },
+            icon: const Icon(Icons.menu),
+            tooltip: 'More',
+            onPressed: () => Navigator.of(context).push(
+              SlideUpRoute<void>(builder: (_) => const MoreScreen()),
+            ),
           ),
         ],
       ),
@@ -201,7 +198,7 @@ class _EmailTile extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(28),
           onTap: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
+            SlideUpRoute<void>(
               builder: (_) => EmailDetailScreen(id: email.id, direction: email.direction),
             ),
           ),
@@ -209,21 +206,24 @@ class _EmailTile extends StatelessWidget {
             padding: const EdgeInsets.all(18),
             child: Row(
               children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: isInbound
-                        ? scheme.primaryContainer
-                        : scheme.tertiaryContainer,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(
-                    isInbound ? Icons.inbox : Icons.send,
-                    size: 20,
-                    color: isInbound
-                        ? scheme.onPrimaryContainer
-                        : scheme.onTertiaryContainer,
+                Hero(
+                  tag: 'email-avatar-${email.id}',
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: isInbound
+                          ? scheme.primaryContainer
+                          : scheme.tertiaryContainer,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(
+                      isInbound ? Icons.inbox : Icons.send,
+                      size: 20,
+                      color: isInbound
+                          ? scheme.onPrimaryContainer
+                          : scheme.onTertiaryContainer,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 14),

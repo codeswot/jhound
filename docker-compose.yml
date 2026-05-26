@@ -22,7 +22,7 @@ services:
       - WEBHOOK_URL=${WEBHOOK_URL}
       - N8N_INTERNAL_URL=${N8N_INTERNAL_URL:-http://localhost:5678}
       - GENERIC_TIMEZONE=Africa/Lagos
-      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_PRURESEND_FROMNE=true
       - EXECUTIONS_DATA_MAX_AGE=168
       - N8N_DEFAULT_ERROR_WORKFLOW=jhound07errorhandler
       - NODES_EXCLUDE=[]
@@ -128,6 +128,45 @@ services:
       - jhound
     profiles:
       - admin
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    image: jhound-api:local
+    container_name: jHound-api
+    restart: unless-stopped
+    ports:
+      - "${API_HOST_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - API_PORT=3000
+      - API_TOKEN=${API_TOKEN:?API_TOKEN required}
+      - CORS_ORIGINS=${CORS_ORIGINS:-}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=jhound
+      - POSTGRES_USER=jhound
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - N8N_INTERNAL_URL=http://n8n:5678
+      - NOSTR_TARGET_NPUB=${NOSTR_TARGET_NPUB}
+      - RESEND_API_KEY=${RESEND_API_KEY:?RESEND_API_KEY required for api}
+      - RESEND_WEBHOOK_SECRET=${RESEND_WEBHOOK_SECRET:-}
+      - RESEND_WEBHOOK_INSECURE=${RESEND_WEBHOOK_INSECURE:-false}
+      - RESEND_FROM=${RESEND_FROM:-${USER_EMAIL}}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - jhound
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   metabase:
     image: metabase/metabase:latest

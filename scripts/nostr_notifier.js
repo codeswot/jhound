@@ -17,37 +17,56 @@ function _checkConfig() {
 }
 
 async function sendMessage(text) {
-    const { Relay, getPublicKey, nip19 } = require('nostr-tools');
-    const { getConversationKey, encrypt: nip44Encrypt } = require('nostr-tools/nip44');
-    const { createGiftWrap } = require('nostr-tools/nip59');
+    const {
+        Relay,
+        finalizeEvent,
+        generateSecretKey,
+        getPublicKey,
+        nip19,
+    } = require('nostr-tools');
+    const {
+        getConversationKey,
+        encrypt: nip44Encrypt,
+    } = require('nostr-tools/nip44');
 
     _checkConfig();
 
     const sk = nip19.decode(CONFIG.nsec).data;
     const pk = getPublicKey(sk);
-    const targetPub = CONFIG.targetNpub ? nip19.decode(CONFIG.targetNpub).data : pk;
+    const targetPub = CONFIG.targetNpub
+        ? nip19.decode(CONFIG.targetNpub).data
+        : pk;
 
-    console.log(`[nostr-out] sending to ${targetPub.slice(0,12)}…`);
+    console.log(`[nostr-out] sending to ${targetPub.slice(0, 12)}…`);
 
     const convKey = getConversationKey(sk, targetPub);
     const encrypted = nip44Encrypt(text, convKey);
     console.log(`[nostr-out] encrypted (${encrypted.length} chars)`);
 
-    const rumor = {
+    const rumor = JSON.stringify({
         kind: 14,
         created_at: Math.floor(Date.now() / 1000),
         tags: [['p', targetPub]],
         content: encrypted,
-    };
+        pubkey: pk,
+    });
 
-    let giftWrap;
-    try {
-        giftWrap = await createGiftWrap(rumor, targetPub);
-        console.log(`[nostr-out] giftWrap created id=${giftWrap.id.slice(0,12)}… kind=${giftWrap.kind}`);
-    } catch (err) {
-        console.error(`[nostr-out] createGiftWrap failed: ${err.message}`);
-        throw err;
-    }
+    const eSk = generateSecretKey();
+    const ePub = getPublicKey(eSk);
+    const eConvKey = getConversationKey(eSk, targetPub);
+    const sealed = nip44Encrypt(rumor, eConvKey);
+
+    const giftWrap = finalizeEvent(
+        {
+            kind: 1059,
+            created_at: Math.floor(Date.now() / 1000),
+            tags: [['p', targetPub]],
+            content: sealed,
+        },
+        eSk,
+    );
+
+    console.log(`[nostr-out] giftWrap kind=${giftWrap.kind} id=${giftWrap.id.slice(0, 12)}… epub=${ePub.slice(0, 12)}…`);
 
     const results = [];
     for (const url of RELAYS) {

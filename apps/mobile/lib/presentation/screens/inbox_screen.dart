@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/animations/animated_route.dart';
+import '../../core/animations/expressive_refresh.dart';
+import '../../core/animations/staggered_list.dart';
 import '../../data/models/email.dart';
 import '../providers/api_provider.dart';
 import '../widgets/expressive_loader.dart';
@@ -160,8 +162,9 @@ class _CursorListState extends ConsumerState<_CursorList> {
       );
     }
 
-    return RefreshIndicator(
+    return ExpressiveRefreshIndicator(
       onRefresh: _refresh,
+      scrollController: _scrollCtrl,
       child: ListView.separated(
         controller: _scrollCtrl,
         physics: const AlwaysScrollableScrollPhysics(),
@@ -175,7 +178,10 @@ class _CursorListState extends ConsumerState<_CursorList> {
               child: Center(child: ExpressiveLoader(size: 32)),
             );
           }
-          return _EmailTile(email: _items[i]);
+          return StaggeredItem(
+            index: i,
+            child: _EmailTile(email: _items[i]),
+          );
         },
       ),
     );

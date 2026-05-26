@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/animations/animated_route.dart';
+import '../../core/animations/staggered_list.dart';
 import '../../core/utils/toast.dart';
 import '../../data/db/app_db.dart';
 import '../providers/drafts_provider.dart';
@@ -54,7 +55,10 @@ class DraftsScreen extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(vertical: 8),
             itemCount: items.length,
             separatorBuilder: (_, __) => const SizedBox(height: 4),
-            itemBuilder: (_, i) => _DraftTile(draft: items[i]),
+            itemBuilder: (_, i) => StaggeredItem(
+              index: i,
+              child: _DraftTile(draft: items[i]),
+            ),
           );
         },
       ),

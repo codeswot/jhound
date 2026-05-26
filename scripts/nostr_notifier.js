@@ -17,56 +17,26 @@ function _checkConfig() {
 }
 
 async function sendMessage(text) {
-    const {
-        Relay,
-        finalizeEvent,
-        generateSecretKey,
-        getPublicKey,
-        nip19,
-    } = require('nostr-tools');
-    const {
-        getConversationKey,
-        encrypt: nip44Encrypt,
-    } = require('nostr-tools/nip44');
+    const { Relay, finalizeEvent, getPublicKey, nip19, nip04 } = require('nostr-tools');
 
     _checkConfig();
 
     const sk = nip19.decode(CONFIG.nsec).data;
     const pk = getPublicKey(sk);
-    const targetPub = CONFIG.targetNpub
-        ? nip19.decode(CONFIG.targetNpub).data
-        : pk;
+    const targetPub = CONFIG.targetNpub ? nip19.decode(CONFIG.targetNpub).data : pk;
 
-    console.log(`[nostr-out] sending to ${targetPub.slice(0, 12)}…`);
+    console.log(`[nostr-out] sending kind=4 to ${targetPub.slice(0, 12)}…`);
 
-    const convKey = getConversationKey(sk, targetPub);
-    const encrypted = nip44Encrypt(text, convKey);
-    console.log(`[nostr-out] encrypted (${encrypted.length} chars)`);
+    const encrypted = await nip04.encrypt(sk, targetPub, text);
 
-    const rumor = JSON.stringify({
-        kind: 14,
+    const event = finalizeEvent({
+        kind: 4,
         created_at: Math.floor(Date.now() / 1000),
         tags: [['p', targetPub]],
         content: encrypted,
-        pubkey: pk,
-    });
+    }, sk);
 
-    const eSk = generateSecretKey();
-    const ePub = getPublicKey(eSk);
-    const eConvKey = getConversationKey(eSk, targetPub);
-    const sealed = nip44Encrypt(rumor, eConvKey);
-
-    const giftWrap = finalizeEvent(
-        {
-            kind: 1059,
-            created_at: Math.floor(Date.now() / 1000),
-            tags: [['p', targetPub]],
-            content: sealed,
-        },
-        eSk,
-    );
-
-    console.log(`[nostr-out] giftWrap kind=${giftWrap.kind} id=${giftWrap.id.slice(0, 12)}… epub=${ePub.slice(0, 12)}…`);
+    console.log(`[nostr-out] event id=${event.id.slice(0, 12)}…`);
 
     const results = [];
     for (const url of RELAYS) {
@@ -74,7 +44,7 @@ async function sendMessage(text) {
         try {
             relay = await Relay.connect(url);
             console.log(`[nostr-out] connected ${url}, publishing…`);
-            await relay.publish(giftWrap);
+            await relay.publish(event);
             console.log(`[nostr-out] published to ${url}`);
             results.push({ url, ok: true });
         } catch (err) {
